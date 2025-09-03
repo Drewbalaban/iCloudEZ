@@ -25,7 +25,8 @@ import {
   WifiOff,
   Smartphone,
   Monitor,
-  Users
+  Users,
+  Home as HomeIcon
 } from 'lucide-react'
 
 interface Document {
@@ -205,17 +206,21 @@ export default function Dashboard() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center space-x-4">
-                <Link href="/" className="flex items-center space-x-3 group">
+                <Link href="/?landing=1" className="flex items-center space-x-3 group">
                   <div className="h-8 w-8 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg flex items-center justify-center group-hover:opacity-90">
                     <Cloud className="h-5 w-5 text-white" />
                   </div>
-                  <h1 className="text-xl font-semibold text-slate-900 dark:text-white group-hover:opacity-90">CloudEZ</h1>
+                  <h1 className="text-xl font-semibold text-slate-900 dark:text-white group-hover:opacity-90">iCloudEZ</h1>
                 </Link>
                 
                 {/* Removed sync/device indicators for cleaner header */}
               </div>
 
               <div className="flex items-center space-x-4">
+                <Link href="/?landing=1" className="hidden sm:inline-flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+                  <HomeIcon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">Home</span>
+                </Link>
                 <div className="relative group">
                   <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
                     <User className="h-5 w-5 text-slate-600 dark:text-slate-400" />

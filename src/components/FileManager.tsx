@@ -28,7 +28,7 @@ import type { Database } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Friend type for picker
-type FriendResult = { id: string; username: string; email?: string }
+type FriendResult = { id: string; username: string | null; email?: string | null; avatar_url?: string | null }
 
 interface FileItem {
   id: string
@@ -64,7 +64,6 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
 
   // Friend picker state
   const [shareTargetFile, setShareTargetFile] = useState<FileItem | null>(null)
-  const [friendQuery, setFriendQuery] = useState('')
   const [friendResults, setFriendResults] = useState<FriendResult[]>([])
   const [friendLoading, setFriendLoading] = useState(false)
 
@@ -303,23 +302,39 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
 
   const openSharePicker = (file: FileItem) => {
     setShareTargetFile(file)
-    setFriendQuery('')
     setFriendResults([])
+    void loadFriends()
   }
 
-  const searchFriends = async (q: string) => {
-    setFriendQuery(q)
-    if (!q.trim()) { setFriendResults([]); return }
+  const loadFriends = async () => {
+    const sb = getSb()
+    if (!sb || !user) return
     try {
       setFriendLoading(true)
-      const res = await fetch(`/api/friends/search?q=${encodeURIComponent(q)}`)
-      const json = await res.json()
-      if (res.ok) {
-        setFriendResults((json.results || []) as FriendResult[])
-      } else {
+      // Fetch accepted friendships where current user is requester or recipient
+      const { data: rows, error } = await sb
+        .from('friend_requests')
+        .select('requester,recipient,status')
+        .eq('status', 'accepted')
+        .or(`requester.eq.${user.id},recipient.eq.${user.id}`)
+      if (error) {
+        console.error('Friend list error:', error)
         setFriendResults([])
+        return
       }
-    } catch {
+      const friendIds = Array.from(new Set((rows || []).map((r: any) => (r.requester === user.id ? r.recipient : r.requester))))
+      if (friendIds.length === 0) { setFriendResults([]); return }
+      const { data: profiles, error: pErr } = await sb
+        .from('profiles')
+        .select('id,username,email,avatar_url')
+        .in('id', friendIds)
+      if (pErr) {
+        console.error('Friend profile error:', pErr)
+        setFriendResults([])
+        return
+      }
+      setFriendResults((profiles || []) as FriendResult[])
+    } catch (e) {
       setFriendResults([])
     } finally {
       setFriendLoading(false)
@@ -664,24 +679,23 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
               <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Share "{shareTargetFile.name}"</h4>
               <button onClick={() => setShareTargetFile(null)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <input
-              value={friendQuery}
-              onChange={(e) => searchFriends(e.target.value)}
-              placeholder="Search friends by username or email"
-              className="w-full mb-3 px-3 py-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-            />
             <div className="max-h-60 overflow-auto space-y-1">
               {friendLoading ? (
                 <div className="text-sm text-slate-500">Loading…</div>
               ) : friendResults.length === 0 ? (
-                <div className="text-sm text-slate-500">No results</div>
+                <div className="text-sm text-slate-500">No friends yet</div>
               ) : (
                 friendResults.map(fr => (
                   <button
                     key={fr.id}
                     onClick={() => shareWithFriend(fr)}
-                    className="w-full text-left px-3 py-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-800 dark:text-slate-100"
+                    className="w-full text-left px-3 py-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2"
                   >
+                    {fr.avatar_url ? (
+                      <img src={fr.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover" />
+                    ) : (
+                      <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-600" />
+                    )}
                     @{fr.username || fr.email}
                   </button>
                 ))

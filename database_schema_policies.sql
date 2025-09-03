@@ -21,9 +21,21 @@ create policy "doc_owner_modify" on public.documents
   with check (auth.uid() = user_id);
 
 -- Public: read-only access when visibility = 'public'
-drop policy if exists "doc_public_read" on public.documents;
-create policy "doc_public_read" on public.documents
-  for select using (visibility = 'public');
+-- Friends of owner: read access when visibility = 'public' (friends-only)
+drop policy if exists "doc_friends_read" on public.documents;
+create policy "doc_friends_read" on public.documents
+  for select using (
+    visibility = 'public' and (
+      exists (
+        select 1 from public.friend_requests fr
+        where fr.status = 'accepted'
+          and (
+            (fr.requester = auth.uid() and fr.recipient = documents.user_id) or
+            (fr.recipient = auth.uid() and fr.requester = documents.user_id)
+          )
+      )
+    )
+  );
 
 -- Shared-with: read-only access if listed in file_shares and not expired
 drop policy if exists "doc_shared_read" on public.documents;
@@ -86,7 +98,8 @@ grant select on public.profiles to authenticated;
 
 -- Allow public reads for files whose associated document is public
 drop policy if exists "storage_public_read" on storage.objects;
-create policy "storage_public_read" on storage.objects
+drop policy if exists "storage_friends_read" on storage.objects;
+create policy "storage_friends_read" on storage.objects
   for select
   using (
     bucket_id = 'documents'
@@ -94,6 +107,14 @@ create policy "storage_public_read" on storage.objects
       select 1 from public.documents d
       where d.file_path = storage.objects.name
         and d.visibility = 'public'
+        and exists (
+          select 1 from public.friend_requests fr
+          where fr.status = 'accepted'
+            and (
+              (fr.requester = auth.uid() and fr.recipient = d.user_id) or
+              (fr.recipient = auth.uid() and fr.requester = d.user_id)
+            )
+        )
     )
   );
 

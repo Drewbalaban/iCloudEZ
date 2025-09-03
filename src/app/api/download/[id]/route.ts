@@ -48,57 +48,53 @@ export async function GET(
     // Rate limit key setup (per-user if authenticated, else per-IP for public)
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || (request as any).ip || 'unknown'
 
-    // Allow unauthenticated access if document is public
-    if (document.visibility === 'public') {
-      // Public downloads: rate limit by IP
-      const { data: allowedIp, error: rlIpError } = await ssr.rpc('rate_limit_allow', {
-        p_event_key: `download_ip:${clientIp}`,
-        p_max_allowed: 60,
-        p_window_seconds: 60,
-      })
-      if (rlIpError) {
-        console.error('Download API: IP rate limit error:', rlIpError)
-      }
-      if (allowedIp === false) {
-        return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
-      }
-    } else {
-      // Require authentication for private/shared documents
-      const { data: { user }, error: authError } = await ssr.auth.getUser()
-      if (authError || !user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    // Require authentication for all downloads now (friends-only for public)
+    const { data: { user }, error: authError } = await ssr.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-      if (document.user_id !== user.id) {
+    if (document.user_id !== user.id) {
+      if (document.visibility === 'public') {
+        // Friends-only access for items marked public
+        const { data: fr, error: frErr } = await ssr
+          .from('friend_requests')
+          .select('id')
+          .eq('status', 'accepted')
+          .or(`and(requester.eq.${user.id},recipient.eq.${document.user_id}),and(recipient.eq.${user.id},requester.eq.${document.user_id})`)
+          .limit(1)
+          .single()
+        if (frErr || !fr) {
+          return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        }
+      } else {
+        // Require an active share for private/shared
         const { data: share, error: shareError } = await ssr
           .from('file_shares')
           .select('id, expires_at')
           .eq('document_id', documentId)
           .eq('shared_with', user.id)
           .single()
-
         if (shareError || !share) {
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
         }
-
-        // Enforce share expiry if set
         if (share.expires_at && new Date(share.expires_at).getTime() <= Date.now()) {
           return NextResponse.json({ error: 'Share expired' }, { status: 403 })
         }
       }
+    }
 
-      // Authenticated downloads: per-user rate limit
-      const { data: allowedUser, error: rlUserError } = await ssr.rpc('rate_limit_allow', {
-        p_event_key: `download:${(await ssr.auth.getUser()).data.user?.id ?? 'unknown'}`,
-        p_max_allowed: 120,
-        p_window_seconds: 60,
-      })
-      if (rlUserError) {
-        console.error('Download API: user rate limit error:', rlUserError)
-      }
-      if (allowedUser === false) {
-        return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
-      }
+    // Authenticated downloads: per-user rate limit
+    const { data: allowedUser, error: rlUserError } = await ssr.rpc('rate_limit_allow', {
+      p_event_key: `download:${user.id}`,
+      p_max_allowed: 120,
+      p_window_seconds: 60,
+    })
+    if (rlUserError) {
+      console.error('Download API: user rate limit error:', rlUserError)
+    }
+    if (allowedUser === false) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     // Use admin client if available to guarantee signing, otherwise fall back to ssr
