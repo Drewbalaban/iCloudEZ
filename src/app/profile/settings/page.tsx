@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -26,6 +26,7 @@ interface ProfileForm {
 export default function ProfileSettingsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [form, setForm] = useState<ProfileForm>({
     username: '',
     full_name: '',
@@ -34,6 +35,7 @@ export default function ProfileSettingsPage() {
   })
   const [saving, setSaving] = useState(false)
   const [profile, setProfile] = useState<any>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   if (!supabase) {
     console.warn('Supabase client not initialized on settings page')
@@ -85,7 +87,6 @@ export default function ProfileSettingsPage() {
       const { error } = await supabase!
         .from('profiles')
         .update({
-          username: form.username,
           full_name: form.full_name,
           bio: form.bio,
           avatar_url: form.avatar_url,
@@ -107,6 +108,69 @@ export default function ProfileSettingsPage() {
 
   const handleInputChange = (field: keyof ProfileForm, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  const onClickChangeAvatar = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleAvatarSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!user || !supabase) {
+      toast.error('Not authenticated')
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be 5MB or less')
+      return
+    }
+
+    setUploadingAvatar(true)
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg'
+      const path = `${user.id}/avatar-${Date.now()}.${fileExt}`
+      const { error: uploadError } = await supabase!
+        .storage
+        .from('avatars')
+        .upload(path, file, { cacheControl: '3600', upsert: true })
+      if (uploadError) throw uploadError
+
+      // Try to get a public URL; if bucket is not public, fall back to signed URL
+      const { data: publicData } = await supabase!
+        .storage
+        .from('avatars')
+        .getPublicUrl(path)
+      let url = publicData?.publicUrl || ''
+      if (!url) {
+        const { data: signed, error: signedErr } = await supabase!
+          .storage
+          .from('avatars')
+          .createSignedUrl(path, 60 * 60 * 24 * 365) // 1 year
+        if (signedErr || !signed?.signedUrl) throw new Error('Failed to create avatar URL')
+        url = signed.signedUrl
+      }
+
+      // Update profile immediately
+      const { error: updateErr } = await supabase!
+        .from('profiles')
+        .update({ avatar_url: url, updated_at: new Date().toISOString() })
+        .eq('id', user.id)
+      if (updateErr) throw updateErr
+
+      setForm(prev => ({ ...prev, avatar_url: url }))
+      toast.success('Avatar updated')
+    } catch (err: any) {
+      console.error('Avatar upload error:', err)
+      toast.error(err?.message || 'Failed to upload avatar')
+    } finally {
+      setUploadingAvatar(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
   if (loading) {
@@ -165,18 +229,27 @@ export default function ProfileSettingsPage() {
                 
                 <button
                   type="button"
-                  className="absolute bottom-0 right-0 h-8 w-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg"
+                  onClick={onClickChangeAvatar}
+                  disabled={uploadingAvatar}
+                  className="absolute bottom-0 right-0 h-8 w-8 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-full flex items-center justify-center shadow-lg"
                 >
                   <Camera className="h-4 w-4" />
                 </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarSelected}
+                />
               </div>
               
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                Click the camera icon to change your avatar
+                {uploadingAvatar ? 'Uploading avatar...' : 'Click the camera icon to change your avatar'}
               </p>
             </div>
 
-            {/* Username */}
+            {/* Username (immutable) */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Username
@@ -185,13 +258,12 @@ export default function ProfileSettingsPage() {
                 type="text"
                 id="username"
                 value={form.username}
-                onChange={(e) => handleInputChange('username', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter username"
-                required
+                readOnly
+                disabled
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                This will be your public profile URL: /profile/{form.username || 'username'}
+                Usernames are permanent.
               </p>
             </div>
 
@@ -225,23 +297,7 @@ export default function ProfileSettingsPage() {
               />
             </div>
 
-            {/* Avatar URL */}
-            <div>
-              <label htmlFor="avatar_url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Avatar URL
-              </label>
-              <input
-                type="url"
-                id="avatar_url"
-                value={form.avatar_url}
-                onChange={(e) => handleInputChange('avatar_url', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="https://example.com/avatar.jpg"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Enter a direct link to an image file
-              </p>
-            </div>
+            {/* Avatar URL removed */}
 
             {/* Privacy Info */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
