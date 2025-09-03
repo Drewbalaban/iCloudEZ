@@ -57,10 +57,23 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
   const [initialLoaded, setInitialLoaded] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('fm:viewMode') as 'grid' | 'list' | null
+      if (stored === 'grid' || stored === 'list') return stored
+    }
+    return 'grid'
+  })
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedType, setSelectedType] = useState<string>('all')
   const [selectedFolder, setSelectedFolder] = useState<string>('all')
+  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'private' | 'public'>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('fm:visibility') as 'all' | 'private' | 'public' | null
+      if (stored === 'all' || stored === 'private' || stored === 'public') return stored
+    }
+    return 'all'
+  })
 
   // Friend picker state
   const [shareTargetFile, setShareTargetFile] = useState<FileItem | null>(null)
@@ -72,6 +85,15 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
 
   // Resolve client at call-time to avoid capturing null during module init
   const getSb = (): SupabaseClient<Database> | null => (supabaseClient as unknown as SupabaseClient<Database>) || null
+
+  // Persist preferences when they change
+  useEffect(() => {
+    try { localStorage.setItem('fm:viewMode', viewMode) } catch {}
+  }, [viewMode])
+
+  useEffect(() => {
+    try { localStorage.setItem('fm:visibility', visibilityFilter) } catch {}
+  }, [visibilityFilter])
 
   useEffect(() => {
     const sb = getSb()
@@ -409,8 +431,14 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = selectedType === 'all' || file.file_category === selectedType
     const matchesFolder = selectedFolder === 'all' || file.folder === selectedFolder
-    return matchesSearch && matchesCategory && matchesFolder
+    const matchesVisibility = visibilityFilter === 'all' || file.visibility === visibilityFilter
+    return matchesSearch && matchesCategory && matchesFolder && matchesVisibility
   })
+
+  // Visibility counts
+  const totalAll = files.length
+  const totalPrivate = files.filter(f => f.visibility === 'private').length
+  const totalPublic = files.filter(f => f.visibility === 'public').length
 
   // Get unique file categories and folders for filters
   const fileCategories = ['all', ...Array.from(new Set(files.map(f => f.file_category)))]
@@ -507,8 +535,30 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
         </div>
       </div>
 
+      {/* Visibility Tabs */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setVisibilityFilter('all')}
+          className={`px-3 py-1.5 rounded-lg text-sm ${visibilityFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'}`}
+        >
+          All ({totalAll})
+        </button>
+        <button
+          onClick={() => setVisibilityFilter('private')}
+          className={`px-3 py-1.5 rounded-lg text-sm ${visibilityFilter === 'private' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'}`}
+        >
+          Private ({totalPrivate})
+        </button>
+        <button
+          onClick={() => setVisibilityFilter('public')}
+          className={`px-3 py-1.5 rounded-lg text-sm ${visibilityFilter === 'public' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'}`}
+        >
+          Public ({totalPublic})
+        </button>
+      </div>
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 mt-3">
         <select
           value={selectedType}
           onChange={(e) => setSelectedType(e.target.value)}
