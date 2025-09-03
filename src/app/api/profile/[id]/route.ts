@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
@@ -7,8 +8,18 @@ const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params
-    const supabase = createClient(url, anon)
-    const { data, error } = await supabase
+    // Require authentication via SSR client
+    const ssr = createServerClient(url, anon, {
+      cookies: {
+        getAll() { return req.cookies.getAll() },
+        setAll() {}
+      }
+    })
+    const { data: { user } } = await ssr.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (user.id !== id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    const { data, error } = await ssr
       .from('profiles')
       .select('username,email')
       .eq('id', id)
