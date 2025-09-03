@@ -21,6 +21,19 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Rate limit responses per user (e.g., 60 per hour)
+  const { data: allowed, error: rlError } = await supabase.rpc('rate_limit_allow', {
+    p_event_key: `friend_respond:${user.id}`,
+    p_max_allowed: 60,
+    p_window_seconds: 3600,
+  })
+  if (rlError) {
+    console.error('Rate limit RPC error:', rlError)
+  }
+  if (allowed === false) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+  }
+
   const { data: reqRow, error: fetchErr } = await supabase
     .from('friend_requests')
     .select('id,recipient,status')

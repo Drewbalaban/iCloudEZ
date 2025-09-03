@@ -18,6 +18,19 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Rate limit unfriend actions per user (e.g., 60 per hour)
+  const { data: allowed, error: rlError } = await supabase.rpc('rate_limit_allow', {
+    p_event_key: `unfriend:${user.id}`,
+    p_max_allowed: 60,
+    p_window_seconds: 3600,
+  })
+  if (rlError) {
+    console.error('Rate limit RPC error:', rlError)
+  }
+  if (allowed === false) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+  }
+
   // Delete all accepted friendship rows between the two users (both directions)
   const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const admin = adminKey ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, adminKey) : null

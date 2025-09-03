@@ -22,6 +22,19 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (user.id === recipientId) return NextResponse.json({ error: 'Cannot friend yourself' }, { status: 400 })
 
+  // Rate limit friend requests per user (e.g., 20 per hour)
+  const { data: allowed, error: rlError } = await supabase.rpc('rate_limit_allow', {
+    p_event_key: `friend_request:${user.id}`,
+    p_max_allowed: 20,
+    p_window_seconds: 3600,
+  })
+  if (rlError) {
+    console.error('Rate limit RPC error:', rlError)
+  }
+  if (allowed === false) {
+    return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+  }
+
   // Check existing
   const { data: existing } = await supabase
     .from('friend_requests')

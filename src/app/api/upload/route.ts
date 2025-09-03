@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// Only create client if we have valid credentials
-const supabase = supabaseUrl && supabaseServiceKey && 
+// Only create admin client if we have valid credentials
+const adminClient = supabaseUrl && supabaseServiceKey && 
   supabaseUrl !== 'your_supabase_project_url' && 
   supabaseServiceKey !== 'your_supabase_service_role_key'
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null
 
 export async function POST(request: NextRequest) {
-  if (!supabase) {
+  if (!supabaseUrl) {
     return NextResponse.json(
       { error: 'Supabase not configured. Please set up your environment variables.' },
       { status: 503 }
@@ -20,15 +21,47 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Create SSR client to authenticate via cookies
+    const ssr = createServerClient(
+      supabaseUrl,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return request.cookies.getAll() },
+          setAll() {}
+        }
+      }
+    )
+
+    const { data: { user } } = await ssr.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const formData = await request.formData()
     const files = formData.getAll('files') as File[]
-    const userId = formData.get('userId') as string
-    const folder = formData.get('folder') as string || 'general'
+    const folder = (formData.get('folder') as string) || 'general'
 
-    if (!files || files.length === 0 || !userId) {
+    if (!files || files.length === 0) {
       return NextResponse.json(
-        { error: 'Files and userId are required' },
+        { error: 'Files are required' },
         { status: 400 }
+      )
+    }
+
+    // Rate limit: limit upload requests per user (e.g., 30 requests/min)
+    const { data: allowed, error: rlError } = await ssr.rpc('rate_limit_allow', {
+      p_event_key: `upload:${user.id}`,
+      p_max_allowed: 30,
+      p_window_seconds: 60,
+    })
+    if (rlError) {
+      console.error('Rate limit RPC error:', rlError)
+    }
+    if (allowed === false) {
+      return NextResponse.json(
+        { error: 'Too many upload requests. Please try again later.' },
+        { status: 429 }
       )
     }
 
@@ -44,10 +77,11 @@ export async function POST(request: NextRequest) {
         // Generate unique filename
         const timestamp = Date.now()
         const fileExtension = file.name.split('.').pop()
-        const fileName = `${userId}/${folderPath}/${timestamp}-${Math.random().toString(36).substring(2)}.${fileExtension}`
+        const fileName = `${user.id}/${folderPath}/${timestamp}-${Math.random().toString(36).substring(2)}.${fileExtension}`
 
         // Upload file to Supabase Storage
-        const { data, error } = await supabase.storage
+        const storageClient = (adminClient ?? ssr).storage
+        const { data, error } = await storageClient
           .from('documents')
           .upload(fileName, file, {
             cacheControl: '3600',
@@ -61,15 +95,16 @@ export async function POST(request: NextRequest) {
         }
 
         // Get file metadata
-        const { data: fileData } = await supabase.storage
+        const { data: fileData } = await storageClient
           .from('documents')
           .getPublicUrl(fileName)
 
         // Insert document record into database
-        const { data: docData, error: dbError } = await supabase
+        const dbClient = adminClient ?? ssr
+        const { data: docData, error: dbError } = await dbClient
           .from('documents')
           .insert({
-            user_id: userId,
+            user_id: user.id,
             name: file.name,
             file_path: fileName,
             file_size: file.size,
@@ -86,7 +121,7 @@ export async function POST(request: NextRequest) {
         if (dbError) {
           console.error('Database insert error:', dbError)
           // Clean up uploaded file if database insert fails
-          await supabase.storage.from('documents').remove([fileName])
+          await storageClient.from('documents').remove([fileName])
           errors.push({ fileName: file.name, error: 'Failed to save file metadata' })
           continue
         }
