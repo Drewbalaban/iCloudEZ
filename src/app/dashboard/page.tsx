@@ -209,7 +209,7 @@ export default function Dashboard() {
                   <div className="h-8 w-8 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg flex items-center justify-center group-hover:opacity-90">
                     <Cloud className="h-5 w-5 text-white" />
                   </div>
-                  <h1 className="text-xl font-semibold text-slate-900 dark:text-white group-hover:opacity-90">CloudEZ</h1>
+                  <h1 className="text-xl font-semibold text-slate-900 dark:text-white group-hover:opacity-90">iCloudEZ</h1>
                 </Link>
                 
                 {/* Removed sync/device indicators for cleaner header */}
