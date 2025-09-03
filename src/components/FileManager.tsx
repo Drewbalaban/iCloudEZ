@@ -27,6 +27,9 @@ import { fileShareService, databaseHealthCheck } from '@/lib/database.service'
 import type { Database } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+// Friend type for picker
+type FriendResult = { id: string; username: string; email?: string }
+
 interface FileItem {
   id: string
   name: string
@@ -58,6 +61,12 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedType, setSelectedType] = useState<string>('all')
   const [selectedFolder, setSelectedFolder] = useState<string>('all')
+
+  // Friend picker state
+  const [shareTargetFile, setShareTargetFile] = useState<FileItem | null>(null)
+  const [friendQuery, setFriendQuery] = useState('')
+  const [friendResults, setFriendResults] = useState<FriendResult[]>([])
+  const [friendLoading, setFriendLoading] = useState(false)
 
   // Track last fetch key to refetch when mode changes
   const lastFetchKeyRef = useRef<string | null>(null)
@@ -292,102 +301,64 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     }
   }
 
-  const shareFile = async (file: FileItem) => {
-    const sb = getSb()
-    if (!sb || !user) return
-    const input = prompt('Enter the username to share with:')
-    const usernameRaw = (input || '').trim()
-    if (!usernameRaw) return
+  const openSharePicker = (file: FileItem) => {
+    setShareTargetFile(file)
+    setFriendQuery('')
+    setFriendResults([])
+  }
+
+  const searchFriends = async (q: string) => {
+    setFriendQuery(q)
+    if (!q.trim()) { setFriendResults([]); return }
     try {
-      console.log('🔍 FileManager: Starting share process for file:', file.name)
-      
-      // Normalize input: strip leading @ and lowercase for username lookup
-      const normalized = usernameRaw.replace(/^@+/, '')
-      console.log('🔍 FileManager: Normalized username:', normalized)
-
-      // 1) Try username (case-insensitive)
-      let recipientId: string | null = null
-      let profErr: any = null
-      const uRes = await sb
-        .from('profiles')
-        .select('id')
-        .ilike('username', normalized)
-        .single()
-      if (!(uRes as any).error && (uRes as any).data?.id) {
-        recipientId = (uRes as any).data.id
-        console.log('🔍 FileManager: Found user by username, ID:', recipientId)
+      setFriendLoading(true)
+      const res = await fetch(`/api/friends/search?q=${encodeURIComponent(q)}`)
+      const json = await res.json()
+      if (res.ok) {
+        setFriendResults((json.results || []) as FriendResult[])
       } else {
-        profErr = (uRes as any).error
-        console.log('🔍 FileManager: Username lookup failed:', profErr)
+        setFriendResults([])
       }
+    } catch {
+      setFriendResults([])
+    } finally {
+      setFriendLoading(false)
+    }
+  }
 
-      // 2) Fallback to email match (case-insensitive)
-      if (!recipientId) {
-        console.log('🔍 FileManager: Trying email lookup for:', usernameRaw)
-        const eRes = await sb
-          .from('profiles')
-          .select('id')
-          .ilike('email', usernameRaw)
-          .single()
-        if (!(eRes as any).error && (eRes as any).data?.id) {
-          recipientId = (eRes as any).data.id
-          console.log('🔍 FileManager: Found user by email, ID:', recipientId)
-        }
-      }
-
-      if (!recipientId) throw new Error('User not found')
-      if (recipientId === user.id) throw new Error('Cannot share with yourself')
-
-      console.log('🔍 FileManager: Creating share with payload:', {
-        document_id: file.id,
-        shared_by: user.id,
-        shared_with: recipientId,
-        permission_level: 'read',
-        expires_at: null
-      })
-
-      const sharePayload = {
-        document_id: file.id,
-        shared_by: user.id,
-        shared_with: recipientId,
-        permission_level: 'read' as const,
-        expires_at: null as any
-      }
-      
-      // First check if share already exists
+  const shareWithFriend = async (friend: FriendResult) => {
+    if (!shareTargetFile || !user) return
+    try {
+      // Prevent sharing with self
+      if (friend.id === user.id) { toast.error('Cannot share with yourself'); return }
+      const sb = getSb()
+      if (!sb) return
+      // Check if already shared
       const { data: existingShare, error: checkError } = await (sb as any)
         .from('file_shares')
         .select('id')
-        .eq('document_id', file.id)
-        .eq('shared_with', recipientId)
+        .eq('document_id', shareTargetFile.id)
+        .eq('shared_with', friend.id)
         .single()
-      
-      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('Error checking existing share:', checkError)
-        throw checkError
-      }
-      
-      if (existingShare) {
-        toast.info(`File "${file.name}" is already shared with ${usernameRaw}`)
+      if (!checkError && existingShare) {
+        toast.info(`Already shared with @${friend.username || friend.email}`)
+        setShareTargetFile(null)
         return
       }
-      
-      // Create new share
+      // Create share
       const { error } = await (sb as any)
         .from('file_shares')
-        .insert(sharePayload)
-      
+        .insert({
+          document_id: shareTargetFile.id,
+          shared_by: user.id,
+          shared_with: friend.id,
+          permission_level: 'read',
+          expires_at: null
+        })
       if (error) throw error
-      
-      console.log('🔍 FileManager: Share created successfully')
-      toast.success(`Shared "${file.name}" with ${usernameRaw}`)
-      
-      // Refresh the files list to show the new share
-      setTimeout(() => {
-        fetchFiles()
-      }, 1000)
+      toast.success(`Shared "${shareTargetFile.name}" with @${friend.username || friend.email}`)
+      setShareTargetFile(null)
     } catch (e: any) {
-      console.error('Share error', e)
       toast.error(e?.message || 'Failed to share')
     }
   }
@@ -599,7 +570,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                       <Download className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); shareFile(file) }}
+                      onClick={(e) => { e.stopPropagation(); openSharePicker(file) }}
                       className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
                       title="Share"
                     >
@@ -653,7 +624,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                       <Download className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); shareFile(file) }}
+                      onClick={(e) => { e.stopPropagation(); openSharePicker(file) }}
                       className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
                       title="Share"
                     >
@@ -682,6 +653,41 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Friend Picker Modal */}
+      {shareTargetFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Share "{shareTargetFile.name}"</h4>
+              <button onClick={() => setShareTargetFile(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <input
+              value={friendQuery}
+              onChange={(e) => searchFriends(e.target.value)}
+              placeholder="Search friends by username or email"
+              className="w-full mb-3 px-3 py-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+            />
+            <div className="max-h-60 overflow-auto space-y-1">
+              {friendLoading ? (
+                <div className="text-sm text-slate-500">Loading…</div>
+              ) : friendResults.length === 0 ? (
+                <div className="text-sm text-slate-500">No results</div>
+              ) : (
+                friendResults.map(fr => (
+                  <button
+                    key={fr.id}
+                    onClick={() => shareWithFriend(fr)}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-800 dark:text-slate-100"
+                  >
+                    @{fr.username || fr.email}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
