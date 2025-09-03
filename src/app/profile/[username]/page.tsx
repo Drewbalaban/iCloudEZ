@@ -9,12 +9,15 @@ import {
   Calendar, 
   FileText, 
   Download, 
-  Eye, 
-  EyeOff,
   Globe,
-  Lock,
   Cloud,
-  ArrowLeft
+  ArrowLeft,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  Music as MusicIcon,
+  Archive as ArchiveIcon,
+  File as FileIcon,
+  FileCode as FileCodeIcon,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -23,7 +26,8 @@ interface PublicFile {
   name: string
   file_size: number
   mime_type: string
-  file_type: string
+  file_category: string
+  file_path: string
   created_at: string
   description?: string
   visibility: 'private' | 'public' | 'shared'
@@ -48,7 +52,23 @@ export default function UserProfilePage() {
   const [publicFiles, setPublicFiles] = useState<PublicFile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const usernameKey = (params.username as string) || 'profile'
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(`profile:viewMode:${usernameKey}`) as 'grid' | 'list' | null
+      if (stored === 'grid' || stored === 'list') return stored
+    }
+    return 'grid'
+  })
+  useEffect(() => {
+    try { localStorage.setItem(`profile:viewMode:${usernameKey}`, viewMode) } catch {}
+  }, [viewMode, usernameKey])
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = localStorage.getItem(`profile:viewMode:${usernameKey}`) as 'grid' | 'list' | null
+    if (stored === 'grid' || stored === 'list') setViewMode(stored)
+  }, [usernameKey])
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({})
 
   if (!supabase) {
     console.warn('Supabase client not initialized on profile page')
@@ -140,6 +160,66 @@ export default function UserProfilePage() {
       }
     }
   }
+
+  // Build icon by mime/extension with sensible colors
+  const getAccurateFileIcon = (file: PublicFile) => {
+    const name = file.name.toLowerCase()
+    const mime = (file.mime_type || '').toLowerCase()
+    const category = (file.file_category || '').toLowerCase()
+    const baseClass = 'h-8 w-8'
+
+    if (category === 'image' || mime.startsWith('image/')) return <ImageIcon className={`${baseClass} text-blue-500`} />
+    if (category === 'video' || mime.startsWith('video/')) return <VideoIcon className={`${baseClass} text-purple-500`} />
+    if (category === 'audio' || mime.startsWith('audio/')) return <MusicIcon className={`${baseClass} text-green-500`} />
+
+    if (mime.includes('pdf') || name.endsWith('.pdf')) return <FileText className={`${baseClass} text-red-500`} />
+    if (name.endsWith('.doc') || name.endsWith('.docx')) return <FileText className={`${baseClass} text-blue-600`} />
+    if (name.endsWith('.ppt') || name.endsWith('.pptx') || mime.includes('presentation')) return <FileText className={`${baseClass} text-purple-600`} />
+    if (name.endsWith('.xls') || name.endsWith('.xlsx') || name.endsWith('.csv') || mime.includes('spreadsheet') || mime.includes('excel')) return <FileText className={`${baseClass} text-green-600`} />
+
+    if (
+      name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.7z') ||
+      name.endsWith('.tar') || name.endsWith('.gz') || mime.includes('zip') || mime.includes('rar') || mime.includes('tar')
+    ) return <ArchiveIcon className={`${baseClass} text-orange-500`} />
+
+    if (
+      name.endsWith('.js') || name.endsWith('.ts') || name.endsWith('.jsx') || name.endsWith('.tsx') ||
+      name.endsWith('.json') || name.endsWith('.py') || name.endsWith('.java') || name.endsWith('.cs') ||
+      name.endsWith('.go') || name.endsWith('.rb') || name.endsWith('.php') || mime.startsWith('text/')
+    ) return <FileCodeIcon className={`${baseClass} text-yellow-600`} />
+
+    return <FileIcon className={`${baseClass} text-gray-500`} />
+  }
+
+  const renderFileVisual = (file: PublicFile, size: 'small' | 'large' = 'large') => {
+    const previewUrl = previewUrls[file.id]
+    const imgClass = size === 'large' ? 'h-20 w-20 object-cover rounded' : 'h-10 w-10 object-cover rounded'
+    const category = (file.file_category || '').toLowerCase()
+    const isImage = (category === 'image' || (file.mime_type || '').toLowerCase().startsWith('image/'))
+    if (isImage && previewUrl) {
+      return <img src={previewUrl} alt="" className={imgClass} />
+    }
+    return getAccurateFileIcon(file)
+  }
+
+  // Attempt to create signed preview URLs for images; silently fall back on failure
+  useEffect(() => {
+    if (!supabase) return
+    const images = publicFiles.filter(f => (f.mime_type?.toLowerCase().startsWith('image/') || (f.file_category || '').toLowerCase() === 'image'))
+    images.forEach(async (file) => {
+      if (previewUrls[file.id]) return
+      try {
+        const { data, error } = await supabase
+          .storage
+          .from('documents')
+          .createSignedUrl(file.file_path, 300)
+        if (!error && data?.signedUrl) {
+          setPreviewUrls(prev => ({ ...prev, [file.id]: data.signedUrl }))
+        }
+      } catch {}
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicFiles.map(f => f.id).join(',')])
 
   const downloadFile = async (file: PublicFile) => {
     try {
@@ -358,7 +438,7 @@ export default function UserProfilePage() {
                     // Grid view
                     <div className="space-y-3">
                       <div className="flex justify-center">
-                        {getFileIcon(file.file_type)}
+                        {renderFileVisual(file, 'large')}
                       </div>
                       <div className="text-center">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -385,7 +465,7 @@ export default function UserProfilePage() {
                     // List view
                     <>
                       <div className="flex-shrink-0">
-                        {getFileIcon(file.file_type)}
+                        {renderFileVisual(file, 'small')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">

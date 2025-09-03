@@ -10,6 +10,7 @@ import {
   Archive, 
   FileText, 
   File, 
+  FileCode,
   Download, 
   Trash2, 
   Share2,
@@ -57,6 +58,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
   const [initialLoaded, setInitialLoaded] = useState(false)
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({})
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('fm:viewMode') as 'grid' | 'list' | null
@@ -400,18 +402,47 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     }
   }
 
-  const getFileIcon = (fileCategory: string) => {
-    switch (fileCategory) {
-      case 'image': return <Image className="h-8 w-8 text-blue-500" />
-      case 'video': return <Video className="h-8 w-8 text-purple-500" />
-      case 'audio': return <Music className="h-8 w-8 text-green-500" />
-      case 'document': return <FileText className="h-8 w-8 text-red-500" />
-      case 'archive': return <Archive className="h-8 w-8 text-orange-500" />
-      case 'spreadsheet': return <FileText className="h-8 w-8 text-green-600" />
-      case 'presentation': return <FileText className="h-8 w-8 text-purple-600" />
-      case 'code': return <FileText className="h-8 w-8 text-yellow-600" />
-      default: return <File className="h-8 w-8 text-gray-500" />
+  const getAccurateFileIcon = (file: FileItem) => {
+    const name = file.name.toLowerCase()
+    const mime = (file.mime_type || '').toLowerCase()
+    const baseClass = 'h-8 w-8'
+
+    // Images get thumbnails elsewhere; this is the fallback icon
+    if (file.file_category === 'image') return <Image className={`${baseClass} text-blue-500`} />
+
+    if (file.file_category === 'video' || mime.startsWith('video/')) return <Video className={`${baseClass} text-purple-500`} />
+    if (file.file_category === 'audio' || mime.startsWith('audio/')) return <Music className={`${baseClass} text-green-500`} />
+
+    if (mime.includes('pdf') || name.endsWith('.pdf')) return <FileText className={`${baseClass} text-red-500`} />
+
+    if (name.endsWith('.doc') || name.endsWith('.docx')) return <FileText className={`${baseClass} text-blue-600`} />
+    if (name.endsWith('.ppt') || name.endsWith('.pptx') || mime.includes('presentation')) return <FileText className={`${baseClass} text-purple-600`} />
+    if (name.endsWith('.xls') || name.endsWith('.xlsx') || name.endsWith('.csv') || mime.includes('spreadsheet') || mime.includes('excel')) return <FileText className={`${baseClass} text-green-600`} />
+
+    if (
+      name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.7z') ||
+      name.endsWith('.tar') || name.endsWith('.gz') || mime.includes('zip') || mime.includes('rar') || mime.includes('tar')
+    ) return <Archive className={`${baseClass} text-orange-500`} />
+
+    if (
+      name.endsWith('.js') || name.endsWith('.ts') || name.endsWith('.jsx') || name.endsWith('.tsx') ||
+      name.endsWith('.json') || name.endsWith('.py') || name.endsWith('.java') || name.endsWith('.cs') ||
+      name.endsWith('.go') || name.endsWith('.rb') || name.endsWith('.php') || mime.startsWith('text/')
+    ) return <FileCode className={`${baseClass} text-yellow-600`} />
+
+    if (file.file_category === 'document') return <FileText className={`${baseClass} text-red-500`} />
+    if (file.file_category === 'archive') return <Archive className={`${baseClass} text-orange-500`} />
+
+    return <File className={`${baseClass} text-gray-500`} />
+  }
+
+  const renderFileVisual = (file: FileItem, size: 'small' | 'large' = 'large') => {
+    const previewUrl = previewUrls[file.id]
+    const imgClass = size === 'large' ? 'h-20 w-20 object-cover rounded' : 'h-10 w-10 object-cover rounded'
+    if (file.file_category === 'image' && previewUrl) {
+      return <img src={previewUrl} alt="" className={imgClass} />
     }
+    return getAccurateFileIcon(file)
   }
 
   const formatFileSize = (bytes: number) => {
@@ -434,6 +465,26 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     const matchesVisibility = visibilityFilter === 'all' || file.visibility === visibilityFilter
     return matchesSearch && matchesCategory && matchesFolder && matchesVisibility
   })
+  // Generate signed preview URLs for image files in view
+  useEffect(() => {
+    const sb = getSb()
+    if (!sb || !user) return
+    const imageFiles = filteredFiles.filter(f => f.file_category === 'image')
+    imageFiles.forEach(async (file) => {
+      if (previewUrls[file.id]) return
+      try {
+        const { data, error } = await sb
+          .storage
+          .from('documents')
+          .createSignedUrl(file.file_path, 300)
+        if (!error && data?.signedUrl) {
+          setPreviewUrls(prev => ({ ...prev, [file.id]: data.signedUrl }))
+        }
+      } catch {}
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredFiles.map(f => f.id).join(',')])
+
 
   // Visibility counts
   const totalAll = files.length
@@ -469,7 +520,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
             {files.map((file) => (
               <div key={file.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                 <div className="flex items-center space-x-3">
-                  {getFileIcon(file.file_category)}
+                  {renderFileVisual(file, 'small')}
                   <div>
                     <p className="font-medium text-slate-900 dark:text-white">{file.name}</p>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -608,7 +659,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                 // Grid view
                 <div className="space-y-3">
                   <div className="flex justify-center">
-                    {getFileIcon(file.file_category)}
+                    {renderFileVisual(file, 'large')}
                   </div>
                   <div className="text-center">
                     <div className="flex items-center justify-center space-x-1 mb-1">
@@ -665,7 +716,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                 // List view
                 <>
                   <div className="flex-shrink-0">
-                    {getFileIcon(file.file_category)}
+                    {renderFileVisual(file, 'small')}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-1">
