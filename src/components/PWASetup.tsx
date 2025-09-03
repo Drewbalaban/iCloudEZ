@@ -40,10 +40,7 @@ export default function PWASetup() {
       registerServiceWorker()
     }
 
-    // Request notification permission
-    if ('Notification' in window) {
-      Notification.requestPermission()
-    }
+    // Do not request notification permission on load; gate behind user gesture elsewhere
 
     // Request background sync permission
     if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
