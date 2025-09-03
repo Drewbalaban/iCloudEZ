@@ -45,9 +45,23 @@ export async function GET(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
+    // Rate limit key setup (per-user if authenticated, else per-IP for public)
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || (request as any).ip || 'unknown'
+
     // Allow unauthenticated access if document is public
     if (document.visibility === 'public' || document.is_public === true) {
-      // proceed without auth
+      // Public downloads: rate limit by IP
+      const { data: allowedIp, error: rlIpError } = await ssr.rpc('rate_limit_allow', {
+        p_event_key: `download_ip:${clientIp}`,
+        p_max_allowed: 60,
+        p_window_seconds: 60,
+      })
+      if (rlIpError) {
+        console.error('Download API: IP rate limit error:', rlIpError)
+      }
+      if (allowedIp === false) {
+        return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+      }
     } else {
       // Require authentication for private/shared documents
       const { data: { user }, error: authError } = await ssr.auth.getUser()
@@ -58,7 +72,7 @@ export async function GET(
       if (document.user_id !== user.id) {
         const { data: share, error: shareError } = await ssr
           .from('file_shares')
-          .select('*')
+          .select('id, expires_at')
           .eq('document_id', documentId)
           .eq('shared_with', user.id)
           .single()
@@ -66,6 +80,24 @@ export async function GET(
         if (shareError || !share) {
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
         }
+
+        // Enforce share expiry if set
+        if (share.expires_at && new Date(share.expires_at).getTime() <= Date.now()) {
+          return NextResponse.json({ error: 'Share expired' }, { status: 403 })
+        }
+      }
+
+      // Authenticated downloads: per-user rate limit
+      const { data: allowedUser, error: rlUserError } = await ssr.rpc('rate_limit_allow', {
+        p_event_key: `download:${(await ssr.auth.getUser()).data.user?.id ?? 'unknown'}`,
+        p_max_allowed: 120,
+        p_window_seconds: 60,
+      })
+      if (rlUserError) {
+        console.error('Download API: user rate limit error:', rlUserError)
+      }
+      if (allowedUser === false) {
+        return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
       }
     }
 
@@ -78,6 +110,19 @@ export async function GET(
     if (signedUrlError || !signedUrlData?.signedUrl) {
       console.error('🔍 Download API: Error creating signed URL:', signedUrlError)
       return NextResponse.json({ error: 'Failed to generate download link' }, { status: 500 })
+    }
+
+    // Increment metrics (best-effort)
+    try {
+      await (admin ?? ssr)
+        .from('documents')
+        .update({
+          download_count: (document.download_count || 0) + 1,
+          last_downloaded: new Date().toISOString(),
+        })
+        .eq('id', document.id)
+    } catch (e) {
+      // ignore metrics errors
     }
 
     return NextResponse.json({
