@@ -25,8 +25,7 @@ import {
   WifiOff,
   Smartphone,
   Monitor,
-  Users,
-  Home as HomeIcon
+  Users
 } from 'lucide-react'
 
 interface Document {
@@ -217,10 +216,7 @@ export default function Dashboard() {
               </div>
 
               <div className="flex items-center space-x-4">
-                <Link href="/?landing=1" className="hidden sm:inline-flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
-                  <HomeIcon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                  <span className="text-sm text-slate-700 dark:text-slate-300">Home</span>
-                </Link>
+                {/* Home button removed per request */}
                 <div className="relative group">
                   <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
                     <User className="h-5 w-5 text-slate-600 dark:text-slate-400" />
