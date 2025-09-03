@@ -38,7 +38,6 @@ interface FileItem {
   created_at: string
   url: string
   visibility: 'private' | 'public' | 'shared'
-  is_public: boolean
   shared_by?: string | null
   shared_by_username?: string | null
   shared_by_email?: string | null
@@ -111,19 +110,28 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
         console.log('🔍 FileManager: Fetching user documents')
         const res = await sb
           .from('documents')
-          .select('*')
+          .select('id,name,file_path,file_size,mime_type,file_category,folder,created_at,visibility')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
         error = (res as any).error
         data = (res as any).data
-        console.log('🔍 FileManager: User documents result:', { data, error })
+        if (error) {
+          console.error('🔍 FileManager: Supabase error fetching documents:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          })
+        } else {
+          console.log('🔍 FileManager: User documents result:', { count: data?.length || 0 })
+        }
       }
 
       if (error) throw error
       setFiles(data || [])
       setInitialLoaded(true)
-    } catch (error) {
-      console.error('Error fetching files:', error)
+    } catch (error: any) {
+      console.error('Error fetching files:', error?.message || error)
       setFiles([])
       setInitialLoaded(true)
     } finally {
@@ -178,7 +186,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
       // Update local state
       setFiles(prev => prev.map(f => 
         f.id === fileId 
-          ? { ...f, is_public: !currentVisibility, visibility: nextVisibility } 
+          ? { ...f, visibility: nextVisibility } 
           : f
       ))
     } catch (error) {
@@ -571,7 +579,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                       <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                         {file.name}
                       </p>
-                      {file.is_public && (
+                      {file.visibility === 'public' && (
                         <Globe className="h-3 w-3 text-green-500" />
                       )}
                     </div>
@@ -598,15 +606,15 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                       <Share2 className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); toggleFileVisibility(file.id, file.is_public) }}
+                      onClick={(e) => { e.stopPropagation(); toggleFileVisibility(file.id, file.visibility === 'public') }}
                       className={`p-2 transition-colors ${
-                        file.is_public 
+                        file.visibility === 'public' 
                           ? 'text-green-400 hover:text-green-600' 
                           : 'text-gray-400 hover:text-blue-600'
                       }`}
-                      title={file.is_public ? 'Make Private' : 'Make Public'}
+                      title={file.visibility === 'public' ? 'Make Private' : 'Make Public'}
                     >
-                      {file.is_public ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                      {file.visibility === 'public' ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteFile(file.id, file.file_path) }}
@@ -628,7 +636,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                       <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                         {file.name}
                       </p>
-                      {file.is_public && (
+                      {file.visibility === 'public' && (
                         <Globe className="h-3 w-3 text-green-500" />
                       )}
                     </div>
@@ -652,15 +660,15 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                       <Share2 className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); toggleFileVisibility(file.id, file.is_public) }}
+                      onClick={(e) => { e.stopPropagation(); toggleFileVisibility(file.id, file.visibility === 'public') }}
                       className={`p-2 transition-colors ${
-                        file.is_public 
+                        file.visibility === 'public' 
                           ? 'text-green-400 hover:text-green-600' 
                           : 'text-gray-400 hover:text-blue-600'
                       }`}
-                      title={file.is_public ? 'Make Private' : 'Make Public'}
+                      title={file.visibility === 'public' ? 'Make Private' : 'Make Public'}
                     >
-                      {file.is_public ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                      {file.visibility === 'public' ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteFile(file.id, file.file_path) }}

@@ -31,7 +31,6 @@ export interface Document {
   folder: string
   description: string | null
   visibility: FileVisibility
-  is_public: boolean
   download_count: number
   last_downloaded: string | null
   checksum: string | null
