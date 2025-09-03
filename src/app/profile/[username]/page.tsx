@@ -26,7 +26,7 @@ interface PublicFile {
   file_type: string
   created_at: string
   description?: string
-  is_public: boolean
+  visibility: 'private' | 'public' | 'shared'
 }
 
 interface UserProfile {
@@ -84,7 +84,7 @@ export default function UserProfilePage() {
         .from('documents')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', profileData.id)
-        .eq('is_public', true)
+        .eq('visibility', 'public')
 
       setProfile({
         ...profileData,
@@ -124,7 +124,7 @@ export default function UserProfilePage() {
         .from('documents')
         .select('*')
         .eq('user_id', profileData.id)
-        .eq('is_public', true)
+        .eq('visibility', 'public')
         .order('created_at', { ascending: false })
 
       if (error) throw error

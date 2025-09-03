@@ -49,7 +49,7 @@ export async function GET(
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || (request as any).ip || 'unknown'
 
     // Allow unauthenticated access if document is public
-    if (document.visibility === 'public' || document.is_public === true) {
+    if (document.visibility === 'public') {
       // Public downloads: rate limit by IP
       const { data: allowedIp, error: rlIpError } = await ssr.rpc('rate_limit_allow', {
         p_event_key: `download_ip:${clientIp}`,

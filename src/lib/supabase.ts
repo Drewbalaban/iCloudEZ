@@ -83,7 +83,6 @@ export interface Database {
           folder: string
           description: string | null
           visibility: 'private' | 'public' | 'shared'
-          is_public: boolean
           download_count: number
           last_downloaded: string | null
           checksum: string | null
