@@ -285,8 +285,9 @@ export const fileShareService = {
         return []
       }
 
-      // Extract document IDs
+      // Extract document IDs and sharer IDs
       const documentIds = basicShares.map((share: any) => share.document_id)
+      const sharedByIds = Array.from(new Set(basicShares.map((share: any) => share.shared_by)))
       console.log('🔍 Database service: Document IDs to fetch:', documentIds)
 
       // Now fetch the actual documents using the IDs
@@ -301,9 +302,39 @@ export const fileShareService = {
         return []
       }
 
-      console.log('🔍 Database service: Fetched shared documents:', documentsData)
+      // Fetch profiles for sharers to get usernames/emails
+      let profilesById: Record<string, { id: string; username: string | null; email: string | null }> = {}
+      if (sharedByIds.length > 0) {
+        const { data: profs, error: profsError } = await sb
+          .from('profiles')
+          .select('id,username,email')
+          .in('id', sharedByIds)
+        if (profsError) {
+          console.error('Error fetching sharer profiles:', profsError)
+        } else {
+          ;(profs || []).forEach((p: any) => { profilesById[p.id] = { id: p.id, username: p.username, email: p.email } })
+        }
+      }
+
+      // Map document to associated share (first matching if multiple)
+      const docIdToShare = new Map<string, any>()
+      basicShares.forEach((s: any) => { if (!docIdToShare.has(s.document_id)) docIdToShare.set(s.document_id, s) })
+
+      // Attach sharer info to each document row for UI convenience
+      const enriched = (documentsData || []).map((doc: any) => {
+        const share = docIdToShare.get(doc.id)
+        const sharer = share ? profilesById[share.shared_by] : undefined
+        return {
+          ...doc,
+          shared_by: share?.shared_by || null,
+          shared_by_username: sharer?.username || null,
+          shared_by_email: sharer?.email || null,
+        }
+      })
+
+      console.log('🔍 Database service: Fetched shared documents (enriched):', enriched)
       
-      return (documentsData as unknown as Document[]) || []
+      return (enriched as unknown as Document[]) || []
     } catch (error) {
       console.error('Exception in getSharedDocuments:', error)
       return []
