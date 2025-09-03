@@ -1,0 +1,142 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+// Only create client if we have valid credentials
+const supabase = supabaseUrl && supabaseServiceKey && 
+  supabaseUrl !== 'your_supabase_project_url' && 
+  supabaseServiceKey !== 'your_supabase_service_role_key'
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null
+
+export async function POST(request: NextRequest) {
+  if (!supabase) {
+    return NextResponse.json(
+      { error: 'Supabase not configured. Please set up your environment variables.' },
+      { status: 503 }
+    )
+  }
+
+  try {
+    const formData = await request.formData()
+    const files = formData.getAll('files') as File[]
+    const userId = formData.get('userId') as string
+    const folder = formData.get('folder') as string || 'general'
+
+    if (!files || files.length === 0 || !userId) {
+      return NextResponse.json(
+        { error: 'Files and userId are required' },
+        { status: 400 }
+      )
+    }
+
+    const uploadResults = []
+    const errors = []
+
+    for (const file of files) {
+      try {
+        // Determine file type and organize accordingly
+        const fileType = getFileType(file.type, file.name)
+        const folderPath = folder === 'general' ? fileType : `${fileType}/${folder}`
+        
+        // Generate unique filename
+        const timestamp = Date.now()
+        const fileExtension = file.name.split('.').pop()
+        const fileName = `${userId}/${folderPath}/${timestamp}-${Math.random().toString(36).substring(2)}.${fileExtension}`
+
+        // Upload file to Supabase Storage
+        const { data, error } = await supabase.storage
+          .from('documents')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          })
+
+        if (error) {
+          console.error('Storage upload error:', error)
+          errors.push({ fileName: file.name, error: 'Failed to upload file' })
+          continue
+        }
+
+        // Get file metadata
+        const { data: fileData } = await supabase.storage
+          .from('documents')
+          .getPublicUrl(fileName)
+
+        // Insert document record into database
+        const { data: docData, error: dbError } = await supabase
+          .from('documents')
+          .insert({
+            user_id: userId,
+            name: file.name,
+            file_path: fileName,
+            file_size: file.size,
+            mime_type: file.type,
+            file_category: fileType,
+            folder: folder,
+            visibility: 'private', // Default to private
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single()
+
+        if (dbError) {
+          console.error('Database insert error:', dbError)
+          // Clean up uploaded file if database insert fails
+          await supabase.storage.from('documents').remove([fileName])
+          errors.push({ fileName: file.name, error: 'Failed to save file metadata' })
+          continue
+        }
+
+        uploadResults.push({
+          success: true,
+          document: docData,
+          url: fileData.publicUrl,
+          fileName: file.name
+        })
+
+      } catch (error) {
+        console.error('File upload error:', error)
+        errors.push({ fileName: file.name, error: 'Internal error' })
+      }
+    }
+
+    return NextResponse.json({
+      success: uploadResults.length > 0,
+      uploaded: uploadResults,
+      errors: errors,
+      totalFiles: files.length,
+      successfulUploads: uploadResults.length,
+      failedUploads: errors.length
+    })
+
+  } catch (error) {
+    console.error('Upload error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// Helper function to categorize files
+function getFileType(mimeType: string, fileName: string): string {
+  if (mimeType.startsWith('image/')) return 'image'
+  if (mimeType.startsWith('video/')) return 'video'
+  if (mimeType.startsWith('audio/')) return 'audio'
+  if (mimeType.includes('pdf')) return 'document'
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'document'
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return 'spreadsheet'
+  if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'presentation'
+  if (mimeType.includes('text/')) return 'document'
+  if (mimeType.includes('archive') || fileName.endsWith('.zip') || fileName.endsWith('.rar')) return 'archive'
+  if (fileName.endsWith('.js') || fileName.endsWith('.ts') || fileName.endsWith('.py') || fileName.endsWith('.java')) return 'code'
+  return 'other'
+}
+
+export async function GET() {
+  return NextResponse.json({ message: 'Upload endpoint' })
+}
