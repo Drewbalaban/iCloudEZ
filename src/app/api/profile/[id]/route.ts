@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     const { data, error } = await ssr
       .from('profiles')
-      .select('username,email')
+      .select('username,email,avatar_url')
       .eq('id', id)
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 404 })

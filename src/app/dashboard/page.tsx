@@ -47,6 +47,7 @@ export default function Dashboard() {
   const { user, signOut, loading } = useAuth()
   const router = useRouter()
   const [displayName, setDisplayName] = useState<string>('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   
   const renderCount = useRef(0)
   renderCount.current += 1
@@ -100,11 +101,14 @@ export default function Dashboard() {
           if (res.ok) {
             const json = await res.json()
             setDisplayName(json.username || user.email || '')
+            setAvatarUrl(json.avatar_url || null)
           } else {
             setDisplayName(user.email || '')
+            setAvatarUrl(null)
           }
         } catch {
           setDisplayName(user?.email || '')
+          setAvatarUrl(null)
         }
       })()
     }, [user, loading, router])
@@ -219,7 +223,11 @@ export default function Dashboard() {
                 {/* Home button removed per request */}
                 <div className="relative group">
                   <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
-                    <User className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                    ) : (
+                      <User className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                    )}
                     <span className="text-sm text-slate-700 dark:text-slate-300">{displayName}</span>
                     <MoreVertical className="h-4 w-4 text-slate-400" />
                   </button>
