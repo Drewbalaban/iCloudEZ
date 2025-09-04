@@ -41,9 +41,9 @@ html, body {
 .hero-gradient {
   background-color: #050816;
   background-image:
-    radial-gradient(1200px 600px at 50% -10%, rgba(37,99,235,0.20), transparent 60%),
-    radial-gradient(900px 500px at 10% 0%, rgba(14,165,233,0.18), transparent 55%),
-    radial-gradient(900px 500px at 90% 0%, rgba(79,70,229,0.18), transparent 55%);
+    radial-gradient(1200px 600px at 50% -10%, rgba(37,99,235,0.18), transparent 62%),
+    radial-gradient(900px 500px at 12% 0%, rgba(14,165,233,0.16), transparent 56%),
+    radial-gradient(900px 500px at 88% 0%, rgba(79,70,229,0.16), transparent 56%);
 }
 
 @media (prefers-color-scheme: dark) {
