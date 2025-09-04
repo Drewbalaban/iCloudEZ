@@ -77,26 +77,26 @@ export default function Home() {
                 <Cloud className="h-6 w-6 text-white" />
               </div>
               <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white">
-                Talk Smarter. Build Faster.
+                Store Smarter. Sync Faster.
                 <br />
-                Powered by AI.
+                Your Cloud, Your Rules.
               </h1>
             </div>
             <p className="mt-5 text-lg text-slate-300/90 animate-float-in" style={{ animationDelay: '140ms', animationDuration: '900ms' }}>
-              A modern AI chat experience that feels less robotic and more... helpful. Built for real teams, makers, and midnight thinkers.
+              Private cloud storage that feels instant. Real‑time sync, powerful sharing, and zero tracking — a personal cloud that actually feels yours.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 animate-float-in" style={{ animationDelay: '200ms', animationDuration: '900ms' }}>
               {user ? (
                 <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 hover:opacity-90 px-6 py-3 rounded-lg font-medium">
-                  Open dashboard <ArrowRight className="h-4 w-4" />
+                  Open Dashboard <ArrowRight className="h-4 w-4" />
                 </Link>
               ) : (
                 <>
                   <Link href="/auth/signup" className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 hover:opacity-90 px-6 py-3 rounded-lg font-medium">
-                    Watch Video
+                    Get Started
                   </Link>
                   <Link href="/auth/signin" className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-3 rounded-lg font-medium">
-                    Download App
+                    Sign In
                   </Link>
                 </>
               )}
