@@ -307,20 +307,9 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Upload Section */}
-          {currentFolder !== 'shared' && (showUpload ? (
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-slate-900 dark:text-white">
-                  Upload Files
-                </h3>
-                <button
-                  onClick={() => setShowUpload(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                >
-                  ✕
-                </button>
-              </div>
+          {/* Hidden uploader; triggered via FileManager header button */}
+          {currentFolder !== 'shared' && (
+            <div className="sr-only" aria-hidden>
               <AutoUpload 
                 ref={uploaderRef}
                 onUploadComplete={handleUploadComplete}
@@ -328,48 +317,18 @@ export default function Dashboard() {
                 maxSize={100}
                 hiddenUI
               />
-              <div className="mt-4">
-                <button 
-                  onClick={() => uploaderRef.current?.openFileDialog()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-                >
-                  Choose Files
-                </button>
-              </div>
             </div>
-          ) : (
-            currentFolder !== 'shared' && (
-              <div className="bg-white dark:bg-slate-800 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 p-8 text-center mb-8">
-                <Upload className="mx-auto h-12 w-12 text-slate-400 mb-4" />
-                <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">
-                  Upload your documents
-                </h3>
-                <p className="text-slate-600 dark:text-slate-400 mb-4">
-                  Click to choose files. Files will automatically sync across devices.
-                </p>
-                <button 
-                  onClick={() => {
-                    setShowUpload(true)
-                    setTimeout(() => uploaderRef.current?.openFileDialog(), 0)
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-                >
-                  Choose Files
-                </button>
-                <AutoUpload 
-                  ref={uploaderRef}
-                  onUploadComplete={handleUploadComplete}
-                  folder={currentFolder || 'general'}
-                  maxSize={100}
-                  hiddenUI
-                />
-              </div>
-            )
-          ))}
+          )}
 
           {/* File Manager */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
-            <FileManager key={currentFolder === 'shared' ? 'shared' : 'own'} onFileSelect={(file) => console.log('File selected:', file)} refreshKey={filesRefreshKey} shared={currentFolder === 'shared'} />
+            <FileManager 
+              key={currentFolder === 'shared' ? 'shared' : 'own'} 
+              onFileSelect={(file) => console.log('File selected:', file)} 
+              refreshKey={filesRefreshKey} 
+              shared={currentFolder === 'shared'}
+              onRequestUpload={() => uploaderRef.current?.openFileDialog()}
+            />
           </div>
         </main>
       </div>

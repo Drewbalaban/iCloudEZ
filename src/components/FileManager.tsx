@@ -51,9 +51,10 @@ interface FileManagerProps {
   onFileSelect?: (file: FileItem) => void
   refreshKey?: number
   shared?: boolean
+  onRequestUpload?: () => void
 }
 
-export default function FileManager({ onFileSelect, refreshKey = 0, shared = false }: FileManagerProps) {
+export default function FileManager({ onFileSelect, refreshKey = 0, shared = false, onRequestUpload }: FileManagerProps) {
   const { user } = useAuth()
   const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -583,6 +584,12 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
               className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
+          <button
+            onClick={() => onRequestUpload?.()}
+            className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            Upload Docs
+          </button>
         </div>
       </div>
 
