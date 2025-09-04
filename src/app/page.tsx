@@ -35,12 +35,14 @@ export default function Home() {
   return (
     <div className="min-h-screen hero-gradient relative overflow-hidden">
       <Starfield density={0.00022} layers={3} speed={0.06} />
+      {/* Darkness-to-light overlay */}
+      <div className="pointer-events-none absolute inset-0 z-[1] top-fade-gradient" />
       {/* Decorative drifting blobs */}
       <div className="pointer-events-none absolute -top-24 -left-24 h-[420px] w-[420px] rounded-full bg-blue-600/20 blur-3xl animate-drift-slow z-0" />
       <div className="pointer-events-none absolute -top-20 right-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/20 blur-3xl animate-drift-medium z-0" />
       <div className="pointer-events-none absolute top-[40%] left-[-140px] h-[300px] w-[300px] rounded-full bg-indigo-500/20 blur-3xl animate-drift-slow z-0" />
       {/* Nav */}
-      <header className="sticky top-0 z-10 bg-white/70 dark:bg-slate-900/60 backdrop-blur border-b border-slate-200/60 dark:border-slate-800/60">
+      <header className="sticky top-0 z-20 bg-white/70 dark:bg-slate-900/60 backdrop-blur border-b border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 flex items-center justify-center shadow-sm">
@@ -66,7 +68,7 @@ export default function Home() {
       </header>
 
       {/* Hero */}
-      <section className="relative z-10">
+      <section className="relative z-20">
         <div className="absolute inset-0 -z-10" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
           <div className="grid md:grid-cols-2 gap-8 items-center">

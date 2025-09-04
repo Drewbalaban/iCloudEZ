@@ -86,3 +86,17 @@ html, body {
 .animate-drift-medium {
   animation: drift 12s ease-in-out infinite;
 }
+
+/* Top darkness fade overlay */
+.top-fade-gradient {
+  background-image: linear-gradient(
+    to bottom,
+    #050816 0%,
+    rgba(5, 8, 22, 0.95) 12%,
+    rgba(5, 8, 22, 0.85) 24%,
+    rgba(5, 8, 22, 0.60) 45%,
+    rgba(5, 8, 22, 0.35) 65%,
+    rgba(5, 8, 22, 0.15) 80%,
+    rgba(5, 8, 22, 0.00) 100%
+  );
+}
