@@ -87,6 +87,32 @@ html, body {
   animation: drift 12s ease-in-out infinite;
 }
 
+/* Aurora rainbow radiants */
+.aurora-a {
+  background:
+    radial-gradient(closest-side, rgba(255, 68, 178, 0.35), transparent 70%),
+    conic-gradient(from 0deg at 50% 50%, rgba(59,130,246,0.35), rgba(14,165,233,0.28), rgba(99,102,241,0.35), rgba(236,72,153,0.30), rgba(59,130,246,0.35));
+  animation: auroraShift 24s linear infinite alternate;
+}
+.aurora-b {
+  background:
+    radial-gradient(closest-side, rgba(14,165,233, 0.35), transparent 70%),
+    conic-gradient(from 90deg at 50% 50%, rgba(236,72,153,0.25), rgba(59,130,246,0.30), rgba(16,185,129,0.25), rgba(14,165,233,0.30));
+  animation: auroraShift 30s linear infinite alternate-reverse;
+}
+.aurora-c {
+  background:
+    radial-gradient(closest-side, rgba(99,102,241,0.35), transparent 70%),
+    conic-gradient(from 180deg at 50% 50%, rgba(16,185,129,0.25), rgba(59,130,246,0.30), rgba(236,72,153,0.28));
+  animation: auroraShift 28s linear infinite;
+}
+
+@keyframes auroraShift {
+  0% { transform: translate3d(-10px, 0, 0) rotate(0deg) scale(1); }
+  50% { transform: translate3d(10px, -12px, 0) rotate(10deg) scale(1.05); }
+  100% { transform: translate3d(-10px, 0, 0) rotate(20deg) scale(1); }
+}
+
 /* Top darkness fade overlay */
 .top-fade-gradient {
   background-image: linear-gradient(

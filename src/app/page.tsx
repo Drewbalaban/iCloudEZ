@@ -7,6 +7,7 @@ import { Cloud, Shield, Lock, Zap, Check, ArrowRight, Folder, UploadCloud, Share
 import Starfield from '@/components/Starfield'
 import PageLoader from '@/components/PageLoader'
 import GrainOverlay from '@/components/GrainOverlay'
+import AuroraOverlay from '@/components/AuroraOverlay'
 import Link from 'next/link'
 // import removed: supabase no longer needed after removing community gallery
 
@@ -32,6 +33,7 @@ export default function Home() {
     <div className="min-h-screen hero-gradient relative overflow-hidden">
       <PageLoader show={showLoader} />
       <Starfield density={0.00022} layers={3} speed={0.06} />
+      <AuroraOverlay />
       <GrainOverlay />
       {/* Darkness-to-light overlay */}
       <div className="pointer-events-none absolute inset-0 z-[1] top-fade-gradient" />
