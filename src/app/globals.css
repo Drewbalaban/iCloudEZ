@@ -100,3 +100,26 @@ html, body {
     rgba(5, 8, 22, 0.00) 100%
   );
 }
+
+/* Bottom halo highlight behind preview panel */
+.bottom-halo-gradient {
+  background: radial-gradient(600px 220px at 50% 0%, rgba(37,99,235,0.35), rgba(14,165,233,0.28), transparent 70%);
+}
+
+/* Glassy glowing panel for mock window */
+.glow-panel {
+  position: relative;
+  border-radius: 1.25rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 10px 40px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.glow-panel::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(to bottom, rgba(59,130,246,0.45), rgba(14,165,233,0.25), transparent 60%);
+  filter: blur(10px);
+  z-index: -1;
+}
