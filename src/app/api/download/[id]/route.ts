@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } from '@/lib/env'
 
 export async function GET(
   request: NextRequest,
@@ -11,9 +12,9 @@ export async function GET(
     // Start download request
     const documentId = id
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = PUBLIC_SUPABASE_URL
+    const anonKey = PUBLIC_SUPABASE_ANON_KEY
+    const serviceKey = SUPABASE_SERVICE_ROLE_KEY
 
     // Admin client for safe server-side checks and signing URLs
     const admin = serviceKey ? createClient(supabaseUrl, serviceKey) : null

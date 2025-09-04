@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } from '@/lib/env'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = PUBLIC_SUPABASE_URL
+const supabaseServiceKey = SUPABASE_SERVICE_ROLE_KEY
 
 // Only create admin client if we have valid credentials
-const adminClient = supabaseUrl && supabaseServiceKey && 
-  supabaseUrl !== 'your_supabase_project_url' && 
-  supabaseServiceKey !== 'your_supabase_service_role_key'
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null
+const adminClient = supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null
 
 export async function POST(request: NextRequest) {
   if (!supabaseUrl) {
@@ -24,7 +21,7 @@ export async function POST(request: NextRequest) {
     // Create SSR client to authenticate via cookies
     const ssr = createServerClient(
       supabaseUrl,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
           getAll() { return request.cookies.getAll() },

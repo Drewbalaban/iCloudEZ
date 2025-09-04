@@ -100,22 +100,9 @@
       ]
     }
   ],
-  "permissions": [
-    "background-sync",
-    "periodic-background-sync",
-    "notifications",
-    "storage"
-  ],
-  "background": {
-    "service_worker": "/sw.js",
-    "type": "module"
-  },
-  "features": [
-    "Cross Platform",
-    "fast",
-    "simple"
-  ],
-  "edge_side_panel": {
-    "preferred_width": 400
+  "serviceworker": {
+    "src": "/sw.js",
+    "scope": "/",
+    "use_cache": true
   }
 }
