@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Cloud, Shield, Lock, Zap, Check, ArrowRight, Folder, UploadCloud, Share2 } from 'lucide-react'
+import Starfield from '@/components/Starfield'
 import Link from 'next/link'
 // import removed: supabase no longer needed after removing community gallery
 
@@ -33,6 +34,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen hero-gradient relative overflow-hidden">
+      <Starfield density={0.00022} layers={3} speed={0.06} />
       {/* Decorative drifting blobs */}
       <div className="pointer-events-none absolute -top-24 -left-24 h-[420px] w-[420px] rounded-full bg-blue-600/20 blur-3xl animate-drift-slow" />
       <div className="pointer-events-none absolute -top-20 right-[-120px] h-[360px] w-[360px] rounded-full bg-cyan-400/20 blur-3xl animate-drift-medium" />
@@ -68,15 +70,15 @@ export default function Home() {
         <div className="absolute inset-0 -z-10" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
           <div className="grid md:grid-cols-2 gap-8 items-center">
-            <div className="animate-float-in" style={{ animationDelay: '80ms' }}>
+            <div className="animate-float-in" style={{ animationDelay: '60ms', animationDuration: '900ms' }}>
               <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white">
                 Your secure cloud,{' '}
                 <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">under your control</span>
               </h1>
-              <p className="mt-5 text-lg text-slate-300/90 max-w-xl">
+              <p className="mt-5 text-lg text-slate-300/90 max-w-xl animate-float-in" style={{ animationDelay: '140ms', animationDuration: '900ms' }}>
                 Private storage, instant sync, and effortless sharing—built on modern, privacy-first tech.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-3 animate-float-in" style={{ animationDelay: '150ms' }}>
+              <div className="mt-8 flex flex-col sm:flex-row gap-3 animate-float-in" style={{ animationDelay: '200ms', animationDuration: '900ms' }}>
                 {user ? (
                   <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 px-6 py-3 rounded-lg font-medium">
                     Open dashboard <ArrowRight className="h-4 w-4" />
@@ -92,7 +94,7 @@ export default function Home() {
                   </>
                 )}
               </div>
-              <div className="mt-6 flex items-center gap-4 text-sm text-slate-300/80 animate-float-in" style={{ animationDelay: '220ms' }}>
+              <div className="mt-6 flex items-center gap-4 text-sm text-slate-300/80 animate-float-in" style={{ animationDelay: '260ms', animationDuration: '900ms' }}>
                 <div className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> End-to-end security</div>
                 <div className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Fast sync</div>
                 <div className="flex items-center gap-2"><Check className="h-4 w-4 text-green-500" /> Private by default</div>
