@@ -103,11 +103,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-16 bottom-halo-gradient">
-            <div className="glow-panel p-4 md:p-6">
-              <div className="rounded-xl h-[320px] md:h-[420px] bg-slate-900/60 border border-white/5" />
-            </div>
-          </div>
+          {/* Preview panel removed per request */}
         </div>
       </section>
 
