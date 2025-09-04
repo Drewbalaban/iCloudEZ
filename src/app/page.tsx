@@ -77,13 +77,13 @@ export default function Home() {
                 <Cloud className="h-6 w-6 text-white" />
               </div>
               <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight text-white/95">
-                Store Smarter. Sync Faster.
+                Your Files. In Sync.
                 <br />
-                Your Cloud, Your Rules.
+                Private by Default.
               </h1>
             </div>
             <p className="mt-4 text-base md:text-lg text-slate-400/90 leading-relaxed animate-float-in" style={{ animationDelay: '140ms', animationDuration: '900ms' }}>
-              Private cloud that feels instant. Real‑time sync, elegant sharing, and zero tracking — your files, your space.
+              Private storage with instant sync and simple sharing.
             </p>
             <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3 animate-float-in" style={{ animationDelay: '200ms', animationDuration: '900ms' }}>
               {user ? (
