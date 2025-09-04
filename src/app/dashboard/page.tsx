@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { initGlobalSync, getGlobalSync, stopGlobalSync } from '@/lib/realtimeSync'
 import AutoUpload, { AutoUploadHandle } from '@/components/AutoUpload'
+import PageLoader from '@/components/PageLoader'
 import FileManager from '@/components/FileManager'
 import { supabase } from '@/lib/supabase'
 import { 
@@ -187,15 +188,7 @@ export default function Dashboard() {
       return new Date(dateString).toLocaleDateString()
     }
 
-    if (stableLoading) {
-      console.log('🔍 Dashboard: Showing stable loading spinner')
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-          <div className="mt-4 text-slate-600">Loading...</div>
-        </div>
-      )
-    }
+    const showLoader = stableLoading
 
     if (!user) {
       console.log('🔍 Dashboard: No user, returning null')
@@ -203,7 +196,8 @@ export default function Dashboard() {
     }
 
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 relative">
+        <PageLoader show={showLoader} />
         {/* Header */}
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

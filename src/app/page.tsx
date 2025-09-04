@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Cloud, Shield, Lock, Zap, Check, ArrowRight, Folder, UploadCloud, Share2 } from 'lucide-react'
 import Starfield from '@/components/Starfield'
+import PageLoader from '@/components/PageLoader'
 import Link from 'next/link'
 // import removed: supabase no longer needed after removing community gallery
 
@@ -22,18 +23,13 @@ export default function Home() {
     }
   }, [user, loading, router, searchParams])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
+  const showLoader = loading
 
   // Always allow viewing landing page; no early return for logged-in users
 
   return (
     <div className="min-h-screen hero-gradient relative overflow-hidden">
+      <PageLoader show={showLoader} />
       <Starfield density={0.00022} layers={3} speed={0.06} />
       {/* Darkness-to-light overlay */}
       <div className="pointer-events-none absolute inset-0 z-[1] top-fade-gradient" />
