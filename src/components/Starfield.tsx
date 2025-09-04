@@ -92,7 +92,7 @@ export default function Starfield({ density = 0.00018, layers = 3, speed = 0.03 
   }, [density, layers, speed])
 
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
       <canvas ref={canvasRef} />
     </div>
   )
