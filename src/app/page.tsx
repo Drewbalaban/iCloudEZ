@@ -77,9 +77,9 @@ export default function Home() {
                 <Cloud className="h-6 w-6 text-white" />
               </div>
               <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight text-white/95">
-                Your Files. In Sync.
+                Private Cloud.
                 <br />
-                Private by Default.
+                Effortless Sync.
               </h1>
             </div>
             <p className="mt-4 text-base md:text-lg text-slate-400/90 leading-relaxed animate-float-in" style={{ animationDelay: '140ms', animationDuration: '900ms' }}>
