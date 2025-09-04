@@ -76,26 +76,26 @@ export default function Home() {
               <div className="mx-auto mb-6 h-12 w-12 rounded-2xl bg-gradient-to-b from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
                 <Cloud className="h-6 w-6 text-white" />
               </div>
-              <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white">
+              <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight text-white/95">
                 Store Smarter. Sync Faster.
                 <br />
                 Your Cloud, Your Rules.
               </h1>
             </div>
-            <p className="mt-5 text-lg text-slate-300/90 animate-float-in" style={{ animationDelay: '140ms', animationDuration: '900ms' }}>
-              Private cloud storage that feels instant. Real‑time sync, powerful sharing, and zero tracking — a personal cloud that actually feels yours.
+            <p className="mt-4 text-base md:text-lg text-slate-400/90 leading-relaxed animate-float-in" style={{ animationDelay: '140ms', animationDuration: '900ms' }}>
+              Private cloud that feels instant. Real‑time sync, elegant sharing, and zero tracking — your files, your space.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 animate-float-in" style={{ animationDelay: '200ms', animationDuration: '900ms' }}>
+            <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3 animate-float-in" style={{ animationDelay: '200ms', animationDuration: '900ms' }}>
               {user ? (
-                <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 hover:opacity-90 px-6 py-3 rounded-lg font-medium">
+                <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 hover:opacity-90 px-5 py-2.5 rounded-full font-medium">
                   Open Dashboard <ArrowRight className="h-4 w-4" />
                 </Link>
               ) : (
                 <>
-                  <Link href="/auth/signup" className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 hover:opacity-90 px-6 py-3 rounded-lg font-medium">
+                  <Link href="/auth/signup" className="inline-flex items-center justify-center gap-2 bg-white text-slate-900 hover:opacity-90 px-5 py-2.5 rounded-full font-medium">
                     Get Started
                   </Link>
-                  <Link href="/auth/signin" className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-3 rounded-lg font-medium">
+                  <Link href="/auth/signin" className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-5 py-2.5 rounded-full font-medium">
                     Sign In
                   </Link>
                 </>
@@ -117,26 +117,26 @@ export default function Home() {
       <section className="py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-3 gap-6">
-            <div className="rounded-2xl p-6 border border-white/10 bg-white/5 backdrop-blur animate-float-in" style={{ animationDelay: '80ms' }}>
-              <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
-                <Shield className="h-5 w-5 text-blue-600" />
+            <div className="rounded-2xl p-5 border border-white/10 bg-white/5 backdrop-blur animate-float-in" style={{ animationDelay: '80ms' }}>
+              <div className="h-9 w-9 rounded-lg bg-blue-100/20 flex items-center justify-center mb-3">
+                <Shield className="h-4.5 w-4.5 text-blue-400" />
               </div>
-              <h3 className="text-lg font-semibold text-white">End-to-end Security</h3>
-              <p className="mt-2 text-slate-300/90">Encryption at rest and in transit. RLS on every table.</p>
+              <h3 className="text-base font-medium text-white">End‑to‑end Security</h3>
+              <p className="mt-1.5 text-sm text-slate-300/90">Encryption at rest and in transit. RLS everywhere.</p>
             </div>
-            <div className="rounded-2xl p-6 border border-white/10 bg-white/5 backdrop-blur animate-float-in" style={{ animationDelay: '140ms' }}>
-              <div className="h-10 w-10 rounded-lg bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center mb-4">
-                <Lock className="h-5 w-5 text-cyan-600" />
+            <div className="rounded-2xl p-5 border border-white/10 bg-white/5 backdrop-blur animate-float-in" style={{ animationDelay: '140ms' }}>
+              <div className="h-9 w-9 rounded-lg bg-cyan-100/20 flex items-center justify-center mb-3">
+                <Lock className="h-4.5 w-4.5 text-cyan-400" />
               </div>
-              <h3 className="text-lg font-semibold text-white">Private by Default</h3>
-              <p className="mt-2 text-slate-300/90">Files are private unless you explicitly share them.</p>
+              <h3 className="text-base font-medium text-white">Private by Default</h3>
+              <p className="mt-1.5 text-sm text-slate-300/90">Files stay private unless you share them.</p>
             </div>
-            <div className="rounded-2xl p-6 border border-white/10 bg-white/5 backdrop-blur animate-float-in" style={{ animationDelay: '200ms' }}>
-              <div className="h-10 w-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-4">
-                <Zap className="h-5 w-5 text-indigo-600" />
+            <div className="rounded-2xl p-5 border border-white/10 bg-white/5 backdrop-blur animate-float-in" style={{ animationDelay: '200ms' }}>
+              <div className="h-9 w-9 rounded-lg bg-indigo-100/20 flex items-center justify-center mb-3">
+                <Zap className="h-4.5 w-4.5 text-indigo-400" />
               </div>
-              <h3 className="text-lg font-semibold text-white">Fast & Reliable</h3>
-              <p className="mt-2 text-slate-300/90">Optimized queries and real-time updates when needed.</p>
+              <h3 className="text-base font-medium text-white">Fast & Reliable</h3>
+              <p className="mt-1.5 text-sm text-slate-300/90">Optimized sync with real‑time updates.</p>
             </div>
           </div>
         </div>
@@ -145,14 +145,14 @@ export default function Home() {
       {/* CTA */}
       <section className="py-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-2xl p-8 bg-gradient-to-r from-blue-600/90 to-cyan-600/90 text-white flex flex-col md:flex-row items-center justify-between gap-4 animate-float-in" style={{ animationDelay: '120ms' }}>
+          <div className="rounded-2xl p-6 md:p-7 bg-gradient-to-r from-blue-600/90 to-cyan-600/90 text-white flex flex-col md:flex-row items-center justify-between gap-4 animate-float-in" style={{ animationDelay: '120ms' }}>
             <div>
-              <h3 className="text-2xl font-bold">Ready to take control of your files?</h3>
-              <p className="text-white/90 mt-1">Start for free. No credit card required.</p>
+              <h3 className="text-xl md:text-2xl font-semibold">Ready to take control of your files?</h3>
+              <p className="text-white/90 mt-1 text-sm">Start for free. No credit card required.</p>
             </div>
             <div className="flex gap-3">
-              <Link href="/auth/signup" className="bg-white text-slate-900 px-5 py-3 rounded-lg font-medium shadow-sm">Create account</Link>
-              <Link href="/auth/signin" className="border border-white/30 px-5 py-3 rounded-lg font-medium hover:bg-white/10">Sign in</Link>
+              <Link href="/auth/signup" className="bg-white text-slate-900 px-5 py-2.5 rounded-full font-medium shadow-sm">Create account</Link>
+              <Link href="/auth/signin" className="border border-white/30 px-5 py-2.5 rounded-full font-medium hover:bg-white/10">Sign in</Link>
             </div>
           </div>
         </div>
