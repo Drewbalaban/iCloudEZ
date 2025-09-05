@@ -33,14 +33,7 @@ export default function FilePreview({
     }
   }, [isVisible, onClose])
 
-  // Reset image loaded state when file changes
-  useEffect(() => {
-    setImageLoaded(false)
-  }, [file.id])
-
   const canPreview = file.file_category === 'image' && previewUrl
-
-  console.log('PREVIEW RENDER:', { isVisible, canPreview, fileCategory: file.file_category, hasUrl: !!previewUrl })
 
   if (!isVisible || !canPreview) return null
 
