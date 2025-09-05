@@ -89,6 +89,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
   const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 })
   const [previewVisible, setPreviewVisible] = useState(false)
+  const [previewHovered, setPreviewHovered] = useState(false)
   const [previewEnabled, setPreviewEnabled] = useState(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('fm:previewEnabled')
@@ -96,6 +97,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     }
     return true
   })
+  const previewTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Track last fetch key to refetch when mode changes
   const lastFetchKeyRef = useRef<string | null>(null)
@@ -480,22 +482,59 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   const handleFileHover = (file: FileItem, event: React.MouseEvent) => {
     if (!previewEnabled) return
     
+    // Clear any existing timeout
+    if (previewTimeoutRef.current) {
+      clearTimeout(previewTimeoutRef.current)
+      previewTimeoutRef.current = null
+    }
+    
     const rect = event.currentTarget.getBoundingClientRect()
+    // Position above the title text area but with more spacing to avoid hover conflicts
+    const titleAreaTop = rect.top + (viewMode === 'grid' ? 120 : 60) // More spacing to avoid conflicts
     setPreviewPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top
+      x: rect.left + rect.width / 2, // Center horizontally on the file item
+      y: titleAreaTop
     })
     setPreviewFile(file)
     setPreviewVisible(true)
   }
 
   const handleFileLeave = () => {
-    setPreviewVisible(false)
+    // Only hide if preview is not being hovered
+    if (!previewHovered) {
+      previewTimeoutRef.current = setTimeout(() => {
+        setPreviewVisible(false)
+        setPreviewFile(null)
+      }, 200)
+    }
+  }
+
+  const handlePreviewEnter = () => {
+    setPreviewHovered(true)
+    // Clear any pending timeout
+    if (previewTimeoutRef.current) {
+      clearTimeout(previewTimeoutRef.current)
+      previewTimeoutRef.current = null
+    }
+  }
+
+  const handlePreviewLeave = () => {
+    setPreviewHovered(false)
+    // Hide preview when leaving the preview area
+    previewTimeoutRef.current = setTimeout(() => {
+      setPreviewVisible(false)
+      setPreviewFile(null)
+    }, 200)
   }
 
   const closePreview = () => {
     setPreviewVisible(false)
     setPreviewFile(null)
+    setPreviewHovered(false)
+    if (previewTimeoutRef.current) {
+      clearTimeout(previewTimeoutRef.current)
+      previewTimeoutRef.current = null
+    }
   }
 
   // Filter files based on search and filters
@@ -875,6 +914,8 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
           isVisible={previewVisible}
           position={previewPosition}
           onClose={closePreview}
+          onMouseEnter={handlePreviewEnter}
+          onMouseLeave={handlePreviewLeave}
         />
       )}
     </div>
