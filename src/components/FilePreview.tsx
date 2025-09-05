@@ -110,7 +110,7 @@ export default function FilePreview({
   return (
     <div
       ref={previewRef}
-      className="fixed z-50 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden max-w-sm w-80"
+      className="fixed z-50 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-xl shadow-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-hidden max-w-sm w-80 animate-in fade-in-0 zoom-in-95 duration-200"
       style={{
         left: Math.min(position.x, window.innerWidth - 320),
         top: Math.min(position.y, window.innerHeight - 400),
@@ -139,7 +139,7 @@ export default function FilePreview({
       </div>
 
       {/* Preview Content */}
-      <div className="p-4">
+      <div className="p-4 animate-in slide-in-from-top-2 duration-300">
         {canPreview ? (
           <div className="space-y-3">
             <div className="relative bg-slate-100 dark:bg-slate-900 rounded-lg overflow-hidden aspect-video">

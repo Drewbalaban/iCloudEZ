@@ -548,7 +548,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
             {files.map((file) => (
               <div 
                 key={file.id} 
-                className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 hover:scale-[1.01] transition-all duration-200 cursor-pointer"
                 onMouseEnter={(e) => handleFileHover(file, e)}
                 onMouseLeave={handleFileLeave}
               >
@@ -689,7 +689,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
           {filteredFiles.map((file) => (
             <div
               key={file.id}
-              className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer ${
+              className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer ${
                 viewMode === 'list' ? 'flex items-center space-x-3 p-3' : 'p-4'
               }`}
               onClick={() => onFileSelect?.(file)}
