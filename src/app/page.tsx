@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Cloud, Shield, Lock, Zap, Check, ArrowRight, Folder, UploadCloud, Share2 } from 'lucide-react'
 import Starfield from '@/components/Starfield'
@@ -16,14 +16,21 @@ import Link from 'next/link'
 export default function Home() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
+  // Avoid useSearchParams at build-time to prevent CSR bailout
+  const [forceLanding, setForceLanding] = useState(false)
 
   useEffect(() => {
-    const forceLanding = searchParams?.get('landing') === '1'
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      setForceLanding(url.searchParams.get('landing') === '1')
+    }
+  }, [])
+
+  useEffect(() => {
     if (!loading && user && !forceLanding) {
       router.push('/dashboard')
     }
-  }, [user, loading, router, searchParams])
+  }, [user, loading, router, forceLanding])
 
   const showLoader = loading
 

@@ -27,12 +27,7 @@ export async function GET(request: NextRequest) {
         supabaseCookies: supabaseCookies.length,
         allCookies: allCookies.map(c => ({ 
           name: c.name, 
-          value: c.value.substring(0, 30) + (c.value.length > 30 ? '...' : ''),
-          path: c.path,
-          domain: c.domain,
-          secure: c.secure,
-          httpOnly: c.httpOnly,
-          sameSite: c.sameSite
+          value: c.value.substring(0, 30) + (c.value.length > 30 ? '...' : '')
         })),
         headers: {
           host: allHeaders.host,

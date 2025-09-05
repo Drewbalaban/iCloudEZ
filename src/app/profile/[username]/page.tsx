@@ -98,16 +98,16 @@ export default function UserProfilePage() {
       const { count: totalFiles } = await supabase!
         .from('documents')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', profileData.id)
+        .eq('user_id', (profileData as any).id)
 
       const { count: publicFiles } = await supabase!
         .from('documents')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', profileData.id)
+        .eq('user_id', (profileData as any).id)
         .eq('visibility', 'public')
 
       setProfile({
-        ...profileData,
+        ...(profileData as any),
         total_files: totalFiles || 0,
         public_files: publicFiles || 0
       })
@@ -143,7 +143,7 @@ export default function UserProfilePage() {
       const { data: files, error } = await supabase!
         .from('documents')
         .select('*')
-        .eq('user_id', profileData.id)
+        .eq('user_id', (profileData as any).id)
         .eq('visibility', 'public')
         .order('created_at', { ascending: false })
 
@@ -209,7 +209,7 @@ export default function UserProfilePage() {
     images.forEach(async (file) => {
       if (previewUrls[file.id]) return
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .storage
           .from('documents')
           .createSignedUrl(file.file_path, 300)

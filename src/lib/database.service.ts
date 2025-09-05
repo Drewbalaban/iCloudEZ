@@ -1,5 +1,17 @@
 import { supabase } from './supabase'
-import type { Profile, Document, FileShare, UserSession } from './database.types'
+import type { 
+  Profile, 
+  Document, 
+  FileShare, 
+  UserSession,
+  Conversation,
+  ConversationParticipant,
+  Message,
+  MessageReaction,
+  MessageReadReceipt,
+  UserPresence,
+  ChatSettings
+} from './database.types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './supabase'
 
@@ -524,6 +536,441 @@ export const sessionService = {
   }
 }
 
+// Chat system operations
+export const chatService = {
+  // Conversation operations
+  async getConversations(): Promise<Conversation[]> {
+    const sb = getSb()
+    if (!sb) return []
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return []
+
+    const { data, error } = await sb
+      .from('conversations')
+      .select(`
+        *,
+        conversation_participants!inner(user_id)
+      `)
+      .eq('conversation_participants.user_id', user.id)
+      .eq('is_active', true)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+
+    if (error) {
+      console.error('Error fetching conversations:', error)
+      return []
+    }
+
+    return (data as unknown as Conversation[]) || []
+  },
+
+  async createDirectConversation(friendId: string): Promise<Conversation | null> {
+    const sb = getSb()
+    if (!sb) return null
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return null
+
+    const { data, error } = await (sb as any).rpc('create_direct_conversation', {
+      user1_id: user.id,
+      user2_id: friendId
+    })
+
+    if (error) {
+      console.error('Error creating direct conversation:', error)
+      return null
+    }
+
+    // Fetch the created conversation
+    const { data: conversation, error: fetchError } = await sb
+      .from('conversations')
+      .select('*')
+      .eq('id', data)
+      .single()
+
+    if (fetchError) {
+      console.error('Error fetching created conversation:', fetchError)
+      return null
+    }
+
+    return conversation as unknown as Conversation
+  },
+
+  async getConversationParticipants(conversationId: string): Promise<ConversationParticipant[]> {
+    const sb = getSb()
+    if (!sb) return []
+
+    const { data, error } = await sb
+      .from('conversation_participants')
+      .select(`
+        *,
+        profiles!inner(id, username, email, full_name, avatar_url)
+      `)
+      .eq('conversation_id', conversationId)
+
+    if (error) {
+      console.error('Error fetching conversation participants:', error)
+      return []
+    }
+
+    return (data as unknown as ConversationParticipant[]) || []
+  },
+
+  // Message operations
+  async getMessages(conversationId: string, limit = 50, offset = 0): Promise<Message[]> {
+    const sb = getSb()
+    if (!sb) return []
+
+    const { data, error } = await sb
+      .from('messages')
+      .select(`
+        *,
+        profiles!messages_sender_id_fkey(id, username, full_name, avatar_url)
+      `)
+      .eq('conversation_id', conversationId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (error) {
+      console.error('Error fetching messages:', error)
+      return []
+    }
+
+    return (data as unknown as Message[]) || []
+  },
+
+  async sendMessage(conversationId: string, content: string, messageType: 'text' | 'image' | 'file' = 'text', attachmentUrl?: string, attachmentName?: string, attachmentSize?: number, attachmentMimeType?: string): Promise<Message | null> {
+    const sb = getSb()
+    if (!sb) return null
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return null
+
+    const messageData = {
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content,
+      message_type: messageType,
+      attachment_url: attachmentUrl || null,
+      attachment_name: attachmentName || null,
+      attachment_size: attachmentSize || null,
+      attachment_mime_type: attachmentMimeType || null
+    }
+
+    const { data, error } = await (sb as any)
+      .from('messages')
+      .insert(messageData)
+      .select(`
+        *,
+        profiles!messages_sender_id_fkey(id, username, full_name, avatar_url)
+      `)
+      .single()
+
+    if (error) {
+      console.error('Error sending message:', error)
+      return null
+    }
+
+    return data as unknown as Message
+  },
+
+  async editMessage(messageId: string, newContent: string): Promise<Message | null> {
+    const sb = getSb()
+    if (!sb) return null
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return null
+
+    const { data, error } = await (sb as any)
+      .from('messages')
+      .update({
+        content: newContent,
+        edited_at: new Date().toISOString()
+      })
+      .eq('id', messageId)
+      .eq('sender_id', user.id)
+      .select(`
+        *,
+        profiles!messages_sender_id_fkey(id, username, full_name, avatar_url)
+      `)
+      .single()
+
+    if (error) {
+      console.error('Error editing message:', error)
+      return null
+    }
+
+    return data as unknown as Message
+  },
+
+  async deleteMessage(messageId: string): Promise<boolean> {
+    const sb = getSb()
+    if (!sb) return false
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return false
+
+    const { error } = await (sb as any)
+      .from('messages')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', messageId)
+      .eq('sender_id', user.id)
+
+    if (error) {
+      console.error('Error deleting message:', error)
+      return false
+    }
+
+    return true
+  },
+
+  // Message reactions
+  async addReaction(messageId: string, emoji: string): Promise<MessageReaction | null> {
+    const sb = getSb()
+    if (!sb) return null
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return null
+
+    const { data, error } = await (sb as any)
+      .from('message_reactions')
+      .insert({
+        message_id: messageId,
+        user_id: user.id,
+        emoji
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error adding reaction:', error)
+      return null
+    }
+
+    return data as unknown as MessageReaction
+  },
+
+  async removeReaction(messageId: string, emoji: string): Promise<boolean> {
+    const sb = getSb()
+    if (!sb) return false
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return false
+
+    const { error } = await sb
+      .from('message_reactions')
+      .delete()
+      .eq('message_id', messageId)
+      .eq('user_id', user.id)
+      .eq('emoji', emoji)
+
+    if (error) {
+      console.error('Error removing reaction:', error)
+      return false
+    }
+
+    return true
+  },
+
+  async getMessageReactions(messageId: string): Promise<MessageReaction[]> {
+    const sb = getSb()
+    if (!sb) return []
+
+    const { data, error } = await sb
+      .from('message_reactions')
+      .select(`
+        *,
+        profiles!message_reactions_user_id_fkey(id, username, full_name, avatar_url)
+      `)
+      .eq('message_id', messageId)
+
+    if (error) {
+      console.error('Error fetching message reactions:', error)
+      return []
+    }
+
+    return (data as unknown as MessageReaction[]) || []
+  },
+
+  // Read receipts
+  async markMessagesAsRead(conversationId: string): Promise<boolean> {
+    const sb = getSb()
+    if (!sb) return false
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return false
+
+    const { error } = await (sb as any).rpc('mark_messages_as_read', {
+      conversation_id: conversationId,
+      user_id: user.id
+    })
+
+    if (error) {
+      console.error('Error marking messages as read:', error)
+      return false
+    }
+
+    return true
+  },
+
+  // User presence
+  async updatePresence(status: 'online' | 'away' | 'busy' | 'offline', customStatus?: string): Promise<UserPresence | null> {
+    const sb = getSb()
+    if (!sb) return null
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return null
+
+    const { data, error } = await (sb as any)
+      .from('user_presence')
+      .upsert({
+        user_id: user.id,
+        status,
+        custom_status: customStatus || null,
+        last_seen: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating presence:', error)
+      return null
+    }
+
+    return data as unknown as UserPresence
+  },
+
+  async setTypingStatus(conversationId: string | null): Promise<boolean> {
+    const sb = getSb()
+    if (!sb) return false
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return false
+
+    const { error } = await (sb as any)
+      .from('user_presence')
+      .upsert({
+        user_id: user.id,
+        is_typing: conversationId !== null,
+        typing_in_conversation_id: conversationId,
+        last_seen: new Date().toISOString()
+      } as any)
+
+    if (error) {
+      console.error('Error setting typing status:', error)
+      return false
+    }
+
+    return true
+  },
+
+  async getFriendsPresence(): Promise<UserPresence[]> {
+    const sb = getSb()
+    if (!sb) return []
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return []
+
+    // First get friend IDs
+    const { data: friendships } = await sb
+      .from('friend_requests')
+      .select('requester, recipient')
+      .or(`requester.eq.${user.id},recipient.eq.${user.id}`)
+      .eq('status', 'accepted')
+
+    if (!friendships || friendships.length === 0) {
+      return []
+    }
+
+    // Extract friend IDs
+    const friendIds = ((friendships as Array<{ requester: string; recipient: string }>) || []).map((f) =>
+      f.requester === user.id ? f.recipient : f.requester
+    )
+
+    const { data, error } = await sb
+      .from('user_presence')
+      .select(`
+        *,
+        profiles!user_presence_user_id_fkey(id, username, full_name, avatar_url)
+      `)
+      .in('user_id', friendIds)
+
+    if (error) {
+      console.error('Error fetching friends presence:', error)
+      return []
+    }
+
+    return (data as unknown as UserPresence[]) || []
+  },
+
+  // Chat settings
+  async getChatSettings(): Promise<ChatSettings | null> {
+    const sb = getSb()
+    if (!sb) return null
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return null
+
+    const { data, error } = await sb
+      .from('chat_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
+
+    if (error) {
+      console.error('Error fetching chat settings:', error)
+      return null
+    }
+
+    return data as unknown as ChatSettings
+  },
+
+  async updateChatSettings(settings: Partial<ChatSettings>): Promise<ChatSettings | null> {
+    const sb = getSb()
+    if (!sb) return null
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return null
+
+    const { data, error } = await (sb as any)
+      .from('chat_settings')
+      .upsert({
+        user_id: user.id,
+        ...settings
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating chat settings:', error)
+      return null
+    }
+
+    return data as unknown as ChatSettings
+  },
+
+  // Utility functions
+  async getUnreadMessageCount(): Promise<number> {
+    const sb = getSb()
+    if (!sb) return 0
+
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return 0
+
+    const { data, error } = await (sb as any).rpc('get_unread_message_count', {
+      user_id: user.id
+    })
+
+    if (error) {
+      console.error('Error getting unread message count:', error)
+      return 0
+    }
+
+    return data || 0
+  }
+}
+
 // Database health check
 export const databaseHealthCheck = {
   async checkTables(): Promise<{ [key: string]: boolean }> {
@@ -531,7 +978,7 @@ export const databaseHealthCheck = {
     if (!sb) return { connected: false }
 
     try {
-      const tables = ['profiles', 'documents', 'file_shares', 'user_sessions']
+      const tables = ['profiles', 'documents', 'file_shares', 'user_sessions', 'conversations', 'messages', 'user_presence', 'chat_settings']
       const results: { [key: string]: boolean } = { connected: true }
 
       for (const table of tables) {

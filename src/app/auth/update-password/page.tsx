@@ -1,10 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { Lock, Cloud, CheckCircle, AlertCircle } from 'lucide-react'
+
+// Avoid prerender and allow client-side hooks freely
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'default-no-store'
 
 export default function UpdatePassword() {
   const [password, setPassword] = useState('')
@@ -13,7 +17,6 @@ export default function UpdatePassword() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const params = useSearchParams()
 
   useEffect(() => {
     // Supabase will redirect here with an access_token for password recovery
