@@ -89,6 +89,13 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
   const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 })
   const [previewVisible, setPreviewVisible] = useState(false)
+  const [previewEnabled, setPreviewEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('fm:previewEnabled')
+      return stored !== 'false' // default to true
+    }
+    return true
+  })
 
   // Track last fetch key to refetch when mode changes
   const lastFetchKeyRef = useRef<string | null>(null)
@@ -104,6 +111,10 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   useEffect(() => {
     try { localStorage.setItem('fm:visibility', visibilityFilter) } catch {}
   }, [visibilityFilter])
+
+  useEffect(() => {
+    try { localStorage.setItem('fm:previewEnabled', previewEnabled.toString()) } catch {}
+  }, [previewEnabled])
 
   useEffect(() => {
     const sb = getSb()
@@ -467,6 +478,8 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
 
   // File preview functions
   const handleFileHover = (file: FileItem, event: React.MouseEvent) => {
+    if (!previewEnabled) return
+    
     const rect = event.currentTarget.getBoundingClientRect()
     setPreviewPosition({
       x: rect.left + rect.width / 2,
@@ -601,6 +614,13 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
               className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <List className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setPreviewEnabled(!previewEnabled)}
+              className={`p-2 rounded-lg ${previewEnabled ? 'bg-green-100 text-green-600' : 'text-gray-400 hover:text-gray-600'}`}
+              title={previewEnabled ? 'Disable file previews' : 'Enable file previews'}
+            >
+              {previewEnabled ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
             </button>
           </div>
         </div>
