@@ -519,14 +519,20 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     imageFiles.forEach(async (file) => {
       if (previewUrls[file.id]) return
       try {
+        console.log('Generating signed URL for:', file.name, file.file_path)
         const { data, error } = await sb
           .storage
           .from('documents')
           .createSignedUrl(file.file_path, 300)
         if (!error && data?.signedUrl) {
+          console.log('Generated URL for:', file.name, data.signedUrl)
           setPreviewUrls(prev => ({ ...prev, [file.id]: data.signedUrl }))
+        } else {
+          console.error('Failed to generate URL for:', file.name, error)
         }
-      } catch {}
+      } catch (err) {
+        console.error('Error generating URL for:', file.name, err)
+      }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredFiles.map(f => f.id).join(',')])
