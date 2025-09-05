@@ -478,7 +478,12 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
 
   // File preview functions
   const handleFileHover = (file: FileItem, event: React.MouseEvent) => {
-    if (!previewEnabled) return
+    if (!previewEnabled) {
+      console.log('Preview disabled')
+      return
+    }
+    
+    console.log('File hover:', file.name, file.file_category, previewUrls[file.id])
     
     const rect = event.currentTarget.getBoundingClientRect()
     setPreviewPosition({
