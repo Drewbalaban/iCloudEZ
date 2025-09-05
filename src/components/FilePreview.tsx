@@ -27,10 +27,33 @@ export default function FilePreview({
 }: FilePreviewProps) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
+  const [documentContent, setDocumentContent] = useState<string>('')
+  const [documentLoading, setDocumentLoading] = useState(false)
+  const [documentError, setDocumentError] = useState(false)
+
+  // Fetch document content for text-based files
+  useEffect(() => {
+    if (isVisible && isDocumentFile(file)) {
+      setDocumentLoading(true)
+      setDocumentError(false)
+      setDocumentContent('')
+      
+      fetchDocumentPreview(file.id)
+        .then(content => {
+          setDocumentContent(content)
+          setDocumentLoading(false)
+        })
+        .catch(error => {
+          console.error('Failed to fetch document preview:', error)
+          setDocumentError(true)
+          setDocumentLoading(false)
+        })
+    }
+  }, [isVisible, file.id])
 
   // Reset image state when preview becomes visible or when previewUrl changes
   useEffect(() => {
-    if (isVisible && previewUrl) {
+    if (isVisible && previewUrl && file.file_category === 'image') {
       setImageLoaded(false)
       setImageError(false)
       
@@ -40,9 +63,72 @@ export default function FilePreview({
       img.onerror = () => setImageError(true)
       img.src = previewUrl
     }
-  }, [isVisible, previewUrl])
+  }, [isVisible, previewUrl, file.file_category])
 
-  const canPreview = file.file_category === 'image' && previewUrl
+  // Helper functions
+  const isDocumentFile = (file: { file_category: string; name: string }) => {
+    const documentExtensions = ['.md', '.txt', '.pdf', '.doc', '.docx', '.rtf', '.csv', '.json', '.xml', '.yaml', '.yml']
+    const fileName = file.name.toLowerCase()
+    return file.file_category === 'document' || 
+           documentExtensions.some(ext => fileName.endsWith(ext))
+  }
+
+  const getFileTypeIcon = (fileName: string) => {
+    const name = fileName.toLowerCase()
+    if (name.endsWith('.pdf')) return '📄'
+    if (name.endsWith('.md')) return '📝'
+    if (name.endsWith('.txt')) return '📃'
+    if (name.endsWith('.doc') || name.endsWith('.docx')) return '📘'
+    if (name.endsWith('.csv')) return '📊'
+    if (name.endsWith('.json') || name.endsWith('.xml')) return '🔧'
+    return '📄'
+  }
+
+  const fetchDocumentPreview = async (fileId: string): Promise<string> => {
+    try {
+      console.log('Fetching document preview for file ID:', fileId)
+      const response = await fetch(`/api/files/preview/${fileId}`)
+      console.log('API Response:', {
+        status: response.status, 
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+      
+      if (!response.ok) {
+        const responseText = await response.text()
+        console.error('API Error Response Text:', responseText)
+        
+        let errorData = { error: 'Unknown error' }
+        try {
+          errorData = JSON.parse(responseText)
+        } catch {
+          errorData = { error: responseText || 'Unknown error' }
+        }
+        
+        console.error('Parsed API Error:', errorData)
+        throw new Error(`Failed to fetch document preview: ${response.status} - ${errorData.error || response.statusText}`)
+      }
+      
+      const responseText = await response.text()
+      console.log('API Response Text:', responseText)
+      
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error('JSON Parse Error:', parseError)
+        throw new Error('Invalid JSON response from API')
+      }
+      
+      console.log('Document preview data:', data)
+      return data.content || 'No content available'
+    } catch (error) {
+      console.error('Fetch error:', error)
+      throw error
+    }
+  }
+
+  const canPreview = (file.file_category === 'image' && previewUrl) || isDocumentFile(file)
 
 
   if (!isVisible || !canPreview) return null
@@ -103,26 +189,68 @@ export default function FilePreview({
           }}
         />
         <div className="relative w-full h-full z-10">
-          {!imageLoaded && !imageError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl backdrop-blur-sm">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          {/* Image Preview */}
+          {file.file_category === 'image' && (
+            <>
+              {!imageLoaded && !imageError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl backdrop-blur-sm">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              )}
+              {imageError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl backdrop-blur-sm">
+                  <div className="text-slate-500 text-sm">Failed to load image</div>
+                </div>
+              )}
+              <img
+                src={previewUrl}
+                alt={file.name}
+                className={`w-full h-full object-cover rounded-2xl transition-opacity duration-200 ${
+                  imageLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
+                onLoad={() => setImageLoaded(true)}
+                onError={() => setImageError(true)}
+                style={{ display: imageError ? 'none' : 'block' }}
+              />
+            </>
+          )}
+
+          {/* Document Preview */}
+          {isDocumentFile(file) && (
+            <div className="p-4 h-full overflow-hidden">
+              {documentLoading && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              )}
+              {documentError && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-slate-500 text-sm text-center">
+                    <div className="mb-2 text-2xl">{getFileTypeIcon(file.name)}</div>
+                    <div>Preview unavailable</div>
+                  </div>
+                </div>
+              )}
+              {documentContent && !documentLoading && !documentError && (
+                <div className="h-full">
+                  <div className="flex items-center mb-2">
+                    <span className="text-lg mr-2">{getFileTypeIcon(file.name)}</span>
+                    <div className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
+                      {file.name}
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed overflow-hidden h-[calc(100%-2rem)]">
+                    <div className="whitespace-pre-wrap break-words overflow-y-auto h-full pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
+                      {documentContent.length > 400 
+                        ? `${documentContent.substring(0, 400)}...` 
+                        : documentContent
+                      }
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-          {imageError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl backdrop-blur-sm">
-              <div className="text-slate-500 text-sm">Failed to load</div>
-            </div>
-          )}
-          <img
-            src={previewUrl}
-            alt={file.name}
-            className={`w-full h-full object-cover rounded-2xl transition-opacity duration-200 ${
-              imageLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageError(true)}
-            style={{ display: imageError ? 'none' : 'block' }}
-          />
         </div>
       </div>
     </div>
