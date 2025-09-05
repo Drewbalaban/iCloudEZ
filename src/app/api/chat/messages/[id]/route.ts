@@ -3,11 +3,11 @@ import { createServerClient } from '@supabase/ssr'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const body = await request.json().catch(() => ({}))
   const { content } = body || {}
-  const messageId = params.id
+  const { id: messageId } = await params
 
   if (!content) {
     return NextResponse.json({ error: 'content required' }, { status: 400 })
@@ -71,9 +71,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const messageId = params.id
+  const { id: messageId } = await params
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

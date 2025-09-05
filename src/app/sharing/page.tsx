@@ -53,7 +53,7 @@ export default function SharingManagerPage() {
         .eq('shared_by', user.id)
         .order('created_at', { ascending: false })
       if (sharesErr) throw sharesErr
-      setShares(sharesData || [])
+      setShares((sharesData as any) || [])
 
       // Load shares received by user
       const { data: receivedData, error: receivedErr } = await sb
@@ -62,12 +62,12 @@ export default function SharingManagerPage() {
         .eq('shared_with', user.id)
         .order('created_at', { ascending: false })
       if (receivedErr) throw receivedErr
-      setReceivedShares(receivedData || [])
+      setReceivedShares((receivedData as any) || [])
 
       // Fetch profile usernames for participants
       const uniqueUserIds = Array.from(new Set([
-        ...(sharesData || []).map(s => s.shared_with),
-        ...(receivedData || []).map(s => s.shared_by),
+        ...(((sharesData as any) || []) as Array<{ shared_with: string }>).map(s => s.shared_with),
+        ...(((receivedData as any) || []) as Array<{ shared_by: string }>).map(s => s.shared_by),
       ]))
       if (uniqueUserIds.length > 0) {
         const { data: profs, error: profErr } = await sb
@@ -76,7 +76,7 @@ export default function SharingManagerPage() {
           .in('id', uniqueUserIds)
         if (profErr) throw profErr
         const map: Record<string, { id: string; username: string; email: string }> = {}
-        ;(profs || []).forEach(p => { map[p.id] = { id: p.id, username: p.username, email: p.email } })
+        ;(((profs as any[]) || [])).forEach((p: any) => { map[p.id] = { id: p.id, username: p.username, email: p.email } })
         setProfilesById(map)
       } else {
         setProfilesById({})
@@ -109,11 +109,11 @@ export default function SharingManagerPage() {
       // Try username
       let recipientId: string | null = null
       const uname = targetUsername.trim().replace(/^@+/, '')
-      let res = await sb.from('profiles').select('id').ilike('username', uname).single()
-      if (!res.error && res.data?.id) recipientId = res.data.id
+      let res: any = await sb.from('profiles').select('id').ilike('username', uname).single()
+      if (!res.error && (res.data as any)?.id) recipientId = (res.data as any).id
       if (!recipientId) {
         res = await sb.from('profiles').select('id').ilike('email', targetUsername.trim()).single()
-        if (!res.error && res.data?.id) recipientId = res.data.id
+        if (!res.error && (res.data as any)?.id) recipientId = (res.data as any).id
       }
       if (!recipientId) { toast.error('User not found'); return }
       if (recipientId === user.id) { toast.error('Cannot share with yourself'); return }
@@ -128,9 +128,9 @@ export default function SharingManagerPage() {
       if (existing) { toast.info('Already shared with this user'); return }
       if (dupErr && dupErr.code && dupErr.code !== 'PGRST116') { throw dupErr }
 
-      const { error } = await sb
-        .from('file_shares')
-        .insert({ document_id: selectedDocId, shared_by: user.id, shared_with: recipientId, permission_level: 'read', expires_at: null as any })
+      const { error } = await (sb
+        .from('file_shares') as any)
+        .insert({ document_id: selectedDocId, shared_by: user.id, shared_with: recipientId, permission_level: 'read', expires_at: null as any } as Database['public']['Tables']['file_shares']['Insert'])
       if (error) throw error
       toast.success('Share created')
       setTargetUsername('')

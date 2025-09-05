@@ -17,6 +17,22 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
+    // First get friend IDs
+    const { data: friendships } = await supabase
+      .from('friend_requests')
+      .select('requester, recipient')
+      .or(`requester.eq.${user.id},recipient.eq.${user.id}`)
+      .eq('status', 'accepted')
+
+    if (!friendships || friendships.length === 0) {
+      return NextResponse.json({ presence: [] })
+    }
+
+    // Extract friend IDs
+    const friendIds = friendships.map(f => 
+      f.requester === user.id ? f.recipient : f.requester
+    )
+
     // Get friends' presence
     const { data: presence, error } = await supabase
       .from('user_presence')
@@ -24,13 +40,7 @@ export async function GET(request: NextRequest) {
         *,
         profiles!user_presence_user_id_fkey(id, username, full_name, avatar_url)
       `)
-      .in('user_id', 
-        supabase
-          .from('friend_requests')
-          .select('requester, recipient')
-          .or(`requester.eq.${user.id},recipient.eq.${user.id}`)
-          .eq('status', 'accepted')
-      )
+      .in('user_id', friendIds)
 
     if (error) {
       console.error('Error fetching presence:', error)

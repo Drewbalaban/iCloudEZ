@@ -571,7 +571,7 @@ export const chatService = {
     const { data: { user } } = await sb.auth.getUser()
     if (!user) return null
 
-    const { data, error } = await sb.rpc('create_direct_conversation', {
+    const { data, error } = await (sb as any).rpc('create_direct_conversation', {
       user1_id: user.id,
       user2_id: friendId
     })
@@ -711,7 +711,7 @@ export const chatService = {
     const { data: { user } } = await sb.auth.getUser()
     if (!user) return false
 
-    const { error } = await sb
+    const { error } = await (sb as any)
       .from('messages')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', messageId)
@@ -801,7 +801,7 @@ export const chatService = {
     const { data: { user } } = await sb.auth.getUser()
     if (!user) return false
 
-    const { error } = await sb.rpc('mark_messages_as_read', {
+    const { error } = await (sb as any).rpc('mark_messages_as_read', {
       conversation_id: conversationId,
       user_id: user.id
     })
@@ -848,14 +848,14 @@ export const chatService = {
     const { data: { user } } = await sb.auth.getUser()
     if (!user) return false
 
-    const { error } = await sb
+    const { error } = await (sb as any)
       .from('user_presence')
       .upsert({
         user_id: user.id,
         is_typing: conversationId !== null,
         typing_in_conversation_id: conversationId,
         last_seen: new Date().toISOString()
-      })
+      } as any)
 
     if (error) {
       console.error('Error setting typing status:', error)
@@ -872,18 +872,29 @@ export const chatService = {
     const { data: { user } } = await sb.auth.getUser()
     if (!user) return []
 
+    // First get friend IDs
+    const { data: friendships } = await sb
+      .from('friend_requests')
+      .select('requester, recipient')
+      .or(`requester.eq.${user.id},recipient.eq.${user.id}`)
+      .eq('status', 'accepted')
+
+    if (!friendships || friendships.length === 0) {
+      return []
+    }
+
+    // Extract friend IDs
+    const friendIds = ((friendships as Array<{ requester: string; recipient: string }>) || []).map((f) =>
+      f.requester === user.id ? f.recipient : f.requester
+    )
+
     const { data, error } = await sb
       .from('user_presence')
       .select(`
         *,
         profiles!user_presence_user_id_fkey(id, username, full_name, avatar_url)
       `)
-      .in('user_id', 
-        sb.from('friend_requests')
-          .select('requester, recipient')
-          .or(`requester.eq.${user.id},recipient.eq.${user.id}`)
-          .eq('status', 'accepted')
-      )
+      .in('user_id', friendIds)
 
     if (error) {
       console.error('Error fetching friends presence:', error)
@@ -947,7 +958,7 @@ export const chatService = {
     const { data: { user } } = await sb.auth.getUser()
     if (!user) return 0
 
-    const { data, error } = await sb.rpc('get_unread_message_count', {
+    const { data, error } = await (sb as any).rpc('get_unread_message_count', {
       user_id: user.id
     })
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
+import type { Database } from '@/lib/supabase'
 import { 
   User, 
   Save, 
@@ -67,10 +68,10 @@ export default function ProfileSettingsPage() {
 
       setProfile(data)
       setForm({
-        username: data.username || '',
-        full_name: data.full_name || '',
-        bio: data.bio || '',
-        avatar_url: data.avatar_url || ''
+        username: (data as any).username || '',
+        full_name: (data as any).full_name || '',
+        bio: (data as any).bio || '',
+        avatar_url: (data as any).avatar_url || ''
       })
     } catch (error) {
       console.error('Error fetching profile:', error)
@@ -84,14 +85,14 @@ export default function ProfileSettingsPage() {
 
     setSaving(true)
     try {
-      const { error } = await supabase!
+      const { error } = await (supabase as any)
         .from('profiles')
         .update({
           full_name: form.full_name,
           bio: form.bio,
           avatar_url: form.avatar_url,
           updated_at: new Date().toISOString()
-        })
+        } as Database['public']['Tables']['profiles']['Update'])
         .eq('id', user.id)
 
       if (error) throw error
@@ -156,9 +157,9 @@ export default function ProfileSettingsPage() {
       }
 
       // Update profile immediately
-      const { error: updateErr } = await supabase!
+      const { error: updateErr } = await (supabase as any)
         .from('profiles')
-        .update({ avatar_url: url, updated_at: new Date().toISOString() })
+        .update({ avatar_url: url, updated_at: new Date().toISOString() } as Database['public']['Tables']['profiles']['Update'])
         .eq('id', user.id)
       if (updateErr) throw updateErr
 

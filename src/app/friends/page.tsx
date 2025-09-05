@@ -56,7 +56,7 @@ export default function FriendsPage() {
         .select('requester,recipient,status')
         .eq('status', 'accepted')
         .or(`requester.eq.${user.id},recipient.eq.${user.id}`)
-      const friendIds = Array.from(new Set((accepted || []).map(r => r.requester === user.id ? r.recipient : r.requester)))
+      const friendIds = Array.from(new Set((accepted || []).map((r: any) => r.requester === user.id ? r.recipient : r.requester)))
       // Collect all ids we need profile info for
       const neededIds = Array.from(new Set([
         ...friendIds,
