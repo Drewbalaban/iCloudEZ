@@ -17,20 +17,18 @@ export default function Home() {
   const { user, loading } = useAuth()
   const router = useRouter()
   // Avoid useSearchParams at build-time to prevent CSR bailout
-  const [forceLanding, setForceLanding] = useState(false)
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href)
-      setForceLanding(url.searchParams.get('landing') === '1')
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!loading && user && !forceLanding) {
+    if (loading || !user) return
+    try {
+      const isLanding = typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('landing') === '1'
+      if (!isLanding) {
+        router.push('/dashboard')
+      }
+    } catch {
       router.push('/dashboard')
     }
-  }, [user, loading, router, forceLanding])
+  }, [user, loading, router])
 
   const showLoader = loading
 
