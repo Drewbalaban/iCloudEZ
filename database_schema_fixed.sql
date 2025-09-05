@@ -302,6 +302,84 @@ CREATE TRIGGER update_documents_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =====================================================
+-- STORAGE POLICIES (appended from consolidated policies)
+-- =====================================================
+
+-- The following grants and policies configure Supabase storage access
+-- for the 'documents' bucket. Run these in the Supabase SQL editor.
+
+-- Ensure authenticated role has privileges; RLS restricts access
+grant select, insert, update, delete on storage.objects to authenticated;
+
+-- Allow public reads only for files whose associated document is public
+drop policy if exists "storage_friends_read" on storage.objects;
+create policy "storage_friends_read" on storage.objects
+  for select
+  using (
+    bucket_id = 'documents'
+    and exists (
+      select 1 from public.documents d
+      where d.file_path = storage.objects.name
+        and d.visibility = 'public'
+    )
+  );
+
+-- Allow owners to read their own files
+drop policy if exists "storage_owner_read" on storage.objects;
+create policy "storage_owner_read" on storage.objects
+  for select
+  using (
+    bucket_id = 'documents'
+    and exists (
+      select 1 from public.documents d
+      where d.file_path = storage.objects.name
+        and d.user_id = auth.uid()
+    )
+  );
+
+-- Allow shared-with users to read shared files (if not expired)
+drop policy if exists "storage_shared_read" on storage.objects;
+create policy "storage_shared_read" on storage.objects
+  for select
+  using (
+    bucket_id = 'documents'
+    and exists (
+      select 1
+      from public.documents d
+      join public.file_shares fs on fs.document_id = d.id
+      where d.file_path = storage.objects.name
+        and fs.shared_with = auth.uid()
+        and (fs.expires_at is null or fs.expires_at > now())
+    )
+  );
+
+-- Allow owners to insert/update/delete files that map to their documents
+drop policy if exists "storage_owner_write" on storage.objects;
+create policy "storage_owner_write" on storage.objects
+  for all
+  using (
+    bucket_id = 'documents'
+    and exists (
+      select 1 from public.documents d
+      where d.file_path = storage.objects.name
+        and d.user_id = auth.uid()
+    )
+  )
+  with check (
+    bucket_id = 'documents'
+    and exists (
+      select 1 from public.documents d
+      where d.file_path = storage.objects.name
+        and d.user_id = auth.uid()
+    )
+  );
+
+-- Service role has full access implicitly
+
+-- Note: Storage bucket creation lives in Supabase dashboard. Ensure a
+-- 'documents' bucket exists and is non-public.
+
+-- =====================================================
 -- VERIFICATION
 -- =====================================================
 
