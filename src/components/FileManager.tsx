@@ -480,6 +480,8 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   const handleFileHover = (file: FileItem, event: React.MouseEvent) => {
     if (!previewEnabled) return
     
+    console.log('HOVER:', file.name, file.file_category, 'URL:', previewUrls[file.id])
+    
     const rect = event.currentTarget.getBoundingClientRect()
     setPreviewPosition({
       x: rect.left + rect.width / 2,

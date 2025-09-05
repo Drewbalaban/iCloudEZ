@@ -40,6 +40,8 @@ export default function FilePreview({
 
   const canPreview = file.file_category === 'image' && previewUrl
 
+  console.log('PREVIEW RENDER:', { isVisible, canPreview, fileCategory: file.file_category, hasUrl: !!previewUrl })
+
   if (!isVisible || !canPreview) return null
 
   return (
