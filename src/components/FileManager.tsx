@@ -27,6 +27,8 @@ import { supabase as supabaseClient } from '@/lib/supabase'
 import { fileShareService, databaseHealthCheck } from '@/lib/database.service'
 import type { Database } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import FilePreview from './FilePreview'
+import { formatFileSize, formatDate } from '@/lib/utils'
 
 // Friend type for picker
 type FriendResult = { id: string; username: string | null; email?: string | null; avatar_url?: string | null }
@@ -82,6 +84,11 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   const [shareTargetFile, setShareTargetFile] = useState<FileItem | null>(null)
   const [friendResults, setFriendResults] = useState<FriendResult[]>([])
   const [friendLoading, setFriendLoading] = useState(false)
+
+  // File preview state
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
+  const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 })
+  const [previewVisible, setPreviewVisible] = useState(false)
 
   // Track last fetch key to refetch when mode changes
   const lastFetchKeyRef = useRef<string | null>(null)
@@ -458,6 +465,26 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     return new Date(dateString).toLocaleDateString()
   }
 
+  // File preview functions
+  const handleFileHover = (file: FileItem, event: React.MouseEvent) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setPreviewPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top
+    })
+    setPreviewFile(file)
+    setPreviewVisible(true)
+  }
+
+  const handleFileLeave = () => {
+    setPreviewVisible(false)
+  }
+
+  const closePreview = () => {
+    setPreviewVisible(false)
+    setPreviewFile(null)
+  }
+
   // Filter files based on search and filters
   const filteredFiles = files.filter(file => {
     const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -519,7 +546,12 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
               Shared Files ({files.length})
             </h3>
             {files.map((file) => (
-              <div key={file.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <div 
+                key={file.id} 
+                className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                onMouseEnter={(e) => handleFileHover(file, e)}
+                onMouseLeave={handleFileLeave}
+              >
                 <div className="flex items-center space-x-3">
                   {renderFileVisual(file, 'small')}
                   <div>
@@ -661,6 +693,8 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                 viewMode === 'list' ? 'flex items-center space-x-3 p-3' : 'p-4'
               }`}
               onClick={() => onFileSelect?.(file)}
+              onMouseEnter={(e) => handleFileHover(file, e)}
+              onMouseLeave={handleFileLeave}
             >
               {viewMode === 'grid' ? (
                 // Grid view
@@ -811,6 +845,18 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
             </div>
           </div>
         </div>
+      )}
+
+      {/* File Preview */}
+      {previewFile && (
+        <FilePreview
+          file={previewFile}
+          previewUrl={previewUrls[previewFile.id]}
+          isVisible={previewVisible}
+          position={previewPosition}
+          onClose={closePreview}
+          onDownload={downloadFile}
+        />
       )}
     </div>
   )
