@@ -855,7 +855,6 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
           isVisible={previewVisible}
           position={previewPosition}
           onClose={closePreview}
-          onDownload={downloadFile}
         />
       )}
     </div>
