@@ -4,11 +4,10 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '@/lib/env'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('Document preview API called for file ID:', params.id)
-    
+    const { id } = await context.params
     // Create SSR client to authenticate via cookies (matching upload route pattern)
     const supabase = createServerClient(
       PUBLIC_SUPABASE_URL,
@@ -23,10 +22,9 @@ export async function GET(
     
     // Get the authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    console.log('Auth check:', { user: !!user, userId: user?.id, error: authError?.message })
     
     if (authError || !user) {
-      console.log('Authentication failed:', { authError, hasUser: !!user })
+      console.log('Auth failed:', authError?.message)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -34,18 +32,16 @@ export async function GET(
     const { data: file, error: fileError } = await supabase
       .from('documents')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .single()
 
-    console.log('File query result:', { file: !!file, error: fileError?.message })
-
     if (fileError || !file) {
-      console.log('File not found or access denied')
+      console.log('File not found:', fileError?.message)
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    console.log('File found:', { name: file.name, category: file.file_category })
+    console.log('Processing file:', file.name, file.file_category)
 
     // Check if file is a document type we can preview
     const documentExtensions = ['.md', '.txt', '.pdf', '.doc', '.docx', '.rtf', '.csv', '.json', '.xml', '.yaml', '.yml']
@@ -57,7 +53,12 @@ export async function GET(
       return NextResponse.json({ error: 'File type not supported for preview' }, { status: 400 })
     }
 
-    // Download file content from Supabase Storage
+    // Create a short-lived signed URL for client-side viewers (e.g., PDF)
+    const { data: signedUrlData } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(file.file_path, 300)
+
+    // Download file content from Supabase Storage (for server-side text extraction)
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('documents')
       .download(file.file_path)
@@ -71,9 +72,22 @@ export async function GET(
     const fileName = file.name.toLowerCase()
     
     if (fileName.endsWith('.pdf')) {
-      // For PDFs, we'll need a PDF parsing library
-      // For now, return a placeholder
-      content = '📄 PDF Document\n\nThis is a PDF document that contains rich content including text, images, and formatting.\n\nFull PDF preview functionality will be available in a future update. You can download the file to view its complete contents.'
+      // Extract text from the first page using pdfjs-dist (more reliable in edge/server envs)
+      try {
+        const pdfjsLib = await import('pdfjs-dist')
+        // @ts-ignore - getDocument exists at runtime
+        const getDocument = pdfjsLib.getDocument || (pdfjsLib as any).default.getDocument
+        const buffer = await fileData.arrayBuffer()
+        const loadingTask = getDocument({ data: buffer })
+        const pdf = await loadingTask.promise
+        const page = await pdf.getPage(1)
+        const textContent: any = await page.getTextContent()
+        const strings: string[] = textContent.items?.map((i: any) => i.str).filter(Boolean) || []
+        content = strings.join(' ').trim() || 'No selectable text on first page.'
+      } catch (pdfError) {
+        console.error('PDF parsing error (pdfjs):', pdfError)
+        content = '📄 PDF Document\n\nUnable to extract text from this PDF file. It may contain images, complex formatting, or be password protected.\n\nPlease download the file to view its complete contents.'
+      }
     } else if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
       // For Word documents
       content = '📘 Word Document\n\nThis is a Microsoft Word document that may contain formatted text, images, tables, and other rich content.\n\nTo view the complete document with all formatting preserved, please download the file.'
@@ -90,6 +104,20 @@ export async function GET(
           } catch {
             // Keep original content if JSON parsing fails
           }
+        } else if (fileName.endsWith('.md')) {
+          // Clean up markdown for better preview display
+          content = content
+            // Remove excessive line breaks
+            .replace(/\n{3,}/g, '\n\n')
+            // Clean up headers for preview
+            .replace(/^#{1,6}\s+/gm, '')
+            // Remove markdown links but keep text
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            // Remove bold/italic markers for cleaner preview
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/\*([^*]+)\*/g, '$1')
+            .replace(/__([^_]+)__/g, '$1')
+            .replace(/_([^_]+)_/g, '$1')
         }
       } catch (error) {
         content = `Unable to preview this ${fileName.split('.').pop()?.toUpperCase()} file.\n\nThe file may be binary or in a format that requires special handling.\n\nPlease download the file to view its contents.`
@@ -102,16 +130,14 @@ export async function GET(
       content = content.substring(0, maxLength) + '...'
     }
 
-    console.log('Successfully processed document preview, returning:', {
-      contentLength: content.length,
-      fileName: file.name
-    })
+    // Successfully processed document preview
     
     return NextResponse.json({ 
       content,
       fileName: file.name,
       fileSize: file.file_size,
-      mimeType: file.mime_type
+      mimeType: file.mime_type,
+      fileUrl: signedUrlData?.signedUrl || null
     })
 
   } catch (error) {

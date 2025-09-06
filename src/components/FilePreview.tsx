@@ -31,9 +31,9 @@ export default function FilePreview({
   const [documentLoading, setDocumentLoading] = useState(false)
   const [documentError, setDocumentError] = useState(false)
 
-  // Fetch document content for text-based files
+  // Fetch document content for text-based files (client-side PDF handled separately)
   useEffect(() => {
-    if (isVisible && isDocumentFile(file)) {
+    if (isVisible && isDocumentFile(file) && !file.name.toLowerCase().endsWith('.pdf')) {
       setDocumentLoading(true)
       setDocumentError(false)
       setDocumentContent('')
@@ -50,6 +50,64 @@ export default function FilePreview({
         })
     }
   }, [isVisible, file.id])
+
+  // Client-side PDF first-page text extraction using pdfjs-dist (avoids server issues)
+  useEffect(() => {
+    const isPdf = file.name.toLowerCase().endsWith('.pdf')
+    if (!isVisible || !isPdf) return
+
+    let cancelled = false
+    async function loadPdf() {
+      try {
+        setDocumentLoading(true)
+        setDocumentError(false)
+        setDocumentContent('')
+
+        // Dynamically load the UMD build of pdf.js from CDN to avoid bundling issues
+        const ensurePdfJs = () => new Promise<any>((resolve, reject) => {
+          // If already loaded, resolve immediately
+          const existing: any = (window as any).pdfjsLib
+          if (existing) return resolve(existing)
+
+          const script = document.createElement('script')
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+          script.async = true
+          script.onload = () => resolve((window as any).pdfjsLib)
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
+
+        const pdfjs: any = await ensurePdfJs()
+        pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+
+        // Prefer direct file URL if available on the file object
+        // Prefer a signed URL from the API response if available on previewUrl-like field
+        const sourceUrl = (file as any).url || (previewUrl as string | undefined)
+        if (!sourceUrl) throw new Error('No PDF URL available')
+
+        const loadingTask = pdfjs.getDocument({ url: sourceUrl, withCredentials: false })
+        const pdf = await loadingTask.promise
+        const page = await pdf.getPage(1)
+        const text = await page.getTextContent()
+        const strings = (text.items as any[]).map((i: any) => i.str).filter(Boolean)
+        const snippet = strings.join(' ').trim()
+
+        if (!cancelled) {
+          setDocumentContent(snippet || 'No selectable text on first page.')
+          setDocumentLoading(false)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('PDF preview (client) error:', err)
+          setDocumentError(true)
+          setDocumentLoading(false)
+        }
+      }
+    }
+
+    loadPdf()
+    return () => { cancelled = true }
+  }, [isVisible, file.name, previewUrl])
 
   // Reset image state when preview becomes visible or when previewUrl changes
   useEffect(() => {
@@ -86,45 +144,28 @@ export default function FilePreview({
 
   const fetchDocumentPreview = async (fileId: string): Promise<string> => {
     try {
-      console.log('Fetching document preview for file ID:', fileId)
       const response = await fetch(`/api/files/preview/${fileId}`)
-      console.log('API Response:', {
-        status: response.status, 
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      })
       
       if (!response.ok) {
         const responseText = await response.text()
-        console.error('API Error Response Text:', responseText)
-        
         let errorData = { error: 'Unknown error' }
         try {
           errorData = JSON.parse(responseText)
         } catch {
           errorData = { error: responseText || 'Unknown error' }
         }
-        
-        console.error('Parsed API Error:', errorData)
         throw new Error(`Failed to fetch document preview: ${response.status} - ${errorData.error || response.statusText}`)
       }
       
-      const responseText = await response.text()
-      console.log('API Response Text:', responseText)
-      
-      let data
-      try {
-        data = JSON.parse(responseText)
-      } catch (parseError) {
-        console.error('JSON Parse Error:', parseError)
-        throw new Error('Invalid JSON response from API')
-      }
-      
-      console.log('Document preview data:', data)
+      const data = await response.json()
       return data.content || 'No content available'
-    } catch (error) {
-      console.error('Fetch error:', error)
-      throw error
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error('Document preview error:', err.message)
+      } else {
+        console.error('Document preview error:', err)
+      }
+      throw err
     }
   }
 
@@ -165,7 +206,7 @@ export default function FilePreview({
       >
         {/* Feathered edge overlay for cloud effect */}
         <div 
-          className="absolute inset-0 rounded-2xl"
+          className="absolute inset-0 rounded-2xl z-0 pointer-events-none"
           style={{
             background: `
               radial-gradient(ellipse at center, transparent 50%, rgba(255, 255, 255, 0.6) 100%),
@@ -179,7 +220,7 @@ export default function FilePreview({
         
         {/* Additional soft glow overlay */}
         <div 
-          className="absolute inset-0 rounded-2xl"
+          className="absolute inset-0 rounded-2xl z-0 pointer-events-none"
           style={{
             background: `
               radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.3) 0%, transparent 60%)
@@ -188,7 +229,7 @@ export default function FilePreview({
             mixBlendMode: 'overlay'
           }}
         />
-        <div className="relative w-full h-full z-10">
+        <div className="relative w-full h-full z-20">
           {/* Image Preview */}
           {file.file_category === 'image' && (
             <>
@@ -235,11 +276,11 @@ export default function FilePreview({
                 <div className="h-full">
                   <div className="flex items-center mb-2">
                     <span className="text-lg mr-2">{getFileTypeIcon(file.name)}</span>
-                    <div className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
+                    <div className="text-xs font-medium text-slate-700 dark:text-slate-700 truncate">
                       {file.name}
                     </div>
                   </div>
-                  <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed overflow-hidden h-[calc(100%-2rem)]">
+                  <div className="text-xs text-slate-900 dark:text-slate-900 leading-relaxed overflow-hidden h-[calc(100%-2rem)]">
                     <div className="whitespace-pre-wrap break-words overflow-y-auto h-full pr-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
                       {documentContent.length > 400 
                         ? `${documentContent.substring(0, 400)}...` 
