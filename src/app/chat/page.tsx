@@ -259,32 +259,10 @@ export default function ChatPage() {
     setShowEmojiPicker(false)
   }
 
-  // Instagram-style gradient generator based on user's message count
-  const getInstagramGradient = (messageIndex: number) => {
-    const gradients = [
-      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple to blue
-      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', // Pink to red
-      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', // Blue to cyan
-      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', // Green to teal
-      'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', // Pink to yellow
-      'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', // Mint to pink
-      'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)', // Coral to pink
-      'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', // Peach gradient
-      'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)', // Purple to pink
-      'linear-gradient(135deg, #fad0c4 0%, #ffd1ff 100%)', // Warm to cool
-    ]
-    
-    // Cycle through gradients based on user's message index (change every 2 messages)
-    const gradientIndex = Math.floor(messageIndex / 2) % gradients.length
-    return gradients[gradientIndex]
-  }
-
-  // Get user's message index for gradient calculation
-  const getUserMessageIndex = (messageId: string) => {
-    const userMessages = messages.filter(msg => msg.sender.id === user?.id)
-    const index = userMessages.findIndex(msg => msg.id === messageId)
-    console.log(`Message ${messageId}: index ${index}, total user messages: ${userMessages.length}`)
-    return index
+  // Single awesome gradient for all user messages
+  const getCoolGradient = () => {
+    // A really cool multi-color gradient inspired by modern UI trends
+    return 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%)'
   }
 
   // Close emoji picker when clicking outside
@@ -600,7 +578,7 @@ export default function ChatPage() {
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                             }`}
                             style={message.sender.id === user.id ? {
-                              background: getInstagramGradient(getUserMessageIndex(message.id)),
+                              background: getCoolGradient(),
                               backgroundAttachment: 'fixed',
                               boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
                             } : {}}
