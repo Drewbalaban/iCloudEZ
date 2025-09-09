@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
         // Upload file to Supabase Storage
         const storageClient = (adminClient ?? ssr).storage
-        const { data, error } = await storageClient
+        const { error } = await storageClient
           .from('documents')
           .upload(fileName, file, {
             cacheControl: '3600',

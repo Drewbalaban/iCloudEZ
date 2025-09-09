@@ -1,22 +1,45 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
 export default function PWASetup() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
-  const [isInstalled, setIsInstalled] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<{ prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> } | null>(null)
+  const [, setIsInstalled] = useState(false)
+
+  const showInstallPrompt = useCallback(async () => {
+    if (!deferredPrompt) {
+      toast.error('Install prompt not available')
+      return
+    }
+
+    try {
+      deferredPrompt.prompt()
+      const { outcome } = await deferredPrompt.userChoice
+      
+      if (outcome === 'accepted') {
+        console.log('✅ User accepted install prompt')
+      } else {
+        console.log('❌ User dismissed install prompt')
+      }
+      
+      setDeferredPrompt(null)
+    } catch (error) {
+      console.error('Install prompt failed:', error)
+      toast.error('Installation failed')
+    }
+  }, [deferredPrompt])
 
   useEffect(() => {
     // Check if app is already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setIsInstalled(true)
-    }
+    // if (window.matchMedia('(display-mode: standalone)').matches) {
+    //   setIsInstalled(true)
+    // }
 
     // Listen for beforeinstallprompt event
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault()
-      setDeferredPrompt(e)
+      setDeferredPrompt(e as unknown as { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> })
       
       // Show install prompt toast
       toast.info('📱 Install CloudEZ as an app for the best experience!', {
@@ -46,7 +69,7 @@ export default function PWASetup() {
     if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
       requestBackgroundSyncPermission()
     }
-  }, [])
+  }, [showInstallPrompt])
 
   const registerServiceWorker = async () => {
     try {
@@ -73,7 +96,7 @@ export default function PWASetup() {
     try {
       if ('permissions' in navigator) {
         const permission = await navigator.permissions.query({
-          name: 'periodic-background-sync' as any
+          name: 'periodic-background-sync' as PermissionName
         })
         
         if (permission.state === 'granted') {
@@ -84,29 +107,6 @@ export default function PWASetup() {
       }
     } catch (error) {
       console.log('Background sync permission not supported:', error)
-    }
-  }
-
-  const showInstallPrompt = async () => {
-    if (!deferredPrompt) {
-      toast.error('Install prompt not available')
-      return
-    }
-
-    try {
-      deferredPrompt.prompt()
-      const { outcome } = await deferredPrompt.userChoice
-      
-      if (outcome === 'accepted') {
-        console.log('✅ User accepted install prompt')
-      } else {
-        console.log('❌ User dismissed install prompt')
-      }
-      
-      setDeferredPrompt(null)
-    } catch (error) {
-      console.error('Install prompt failed:', error)
-      toast.error('Installation failed')
     }
   }
 

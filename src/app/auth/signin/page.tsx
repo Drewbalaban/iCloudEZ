@@ -24,8 +24,8 @@ export default function SignIn() {
     try {
       await signIn(email, password)
       router.push('/dashboard')
-    } catch (error: any) {
-      setError(error.message || 'Failed to sign in')
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Failed to sign in')
     } finally {
       setLoading(false)
     }
@@ -141,7 +141,7 @@ export default function SignIn() {
           <div className="flex items-center justify-between text-sm">
             <Link href="/auth/reset" className="text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">Forgot password?</Link>
             <div className="text-slate-600 dark:text-slate-400">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href="/auth/signup" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
                 Sign up
               </Link>

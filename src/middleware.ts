@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
         setAll(cookiesToSet) {
           // Recreate response and set cookies on the response only (per Next.js API)
           supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }: any) =>
+          cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options?: Record<string, unknown> }) =>
             supabaseResponse.cookies.set({ name, value, ...options })
           )
         },

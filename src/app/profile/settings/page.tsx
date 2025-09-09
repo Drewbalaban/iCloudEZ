@@ -1,17 +1,16 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import type { Database } from '@/lib/supabase'
 import { 
   User, 
   Save, 
   ArrowLeft,
   Camera,
   Globe,
-  Lock,
   Trash
 } from 'lucide-react'
 import Link from 'next/link'
@@ -35,7 +34,7 @@ export default function ProfileSettingsPage() {
     avatar_url: ''
   })
   const [saving, setSaving] = useState(false)
-  const [profile, setProfile] = useState<any>(null)
+  const [, setProfile] = useState<ProfileForm | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   if (!supabase) {
@@ -48,13 +47,7 @@ export default function ProfileSettingsPage() {
     }
   }, [user, loading, router])
 
-  useEffect(() => {
-    if (user) {
-      fetchProfile()
-    }
-  }, [user])
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     if (!user) return
 
     try {
@@ -64,20 +57,28 @@ export default function ProfileSettingsPage() {
         .eq('id', user.id)
         .single()
 
-      if (error) throw error
+      if (error || !data) throw error || new Error('Profile not found')
+
+      const profileData = data as { username: string; full_name: string | null; bio: string | null; avatar_url: string | null }
 
       setProfile(data)
       setForm({
-        username: (data as any).username || '',
-        full_name: (data as any).full_name || '',
-        bio: (data as any).bio || '',
-        avatar_url: (data as any).avatar_url || ''
+        username: profileData.username || '',
+        full_name: profileData.full_name || '',
+        bio: profileData.bio || '',
+        avatar_url: profileData.avatar_url || ''
       })
     } catch (error) {
       console.error('Error fetching profile:', error)
       toast.error('Failed to load profile')
     }
-  }
+  }, [user])
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile()
+    }
+  }, [user, fetchProfile])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,14 +86,14 @@ export default function ProfileSettingsPage() {
 
     setSaving(true)
     try {
-      const { error } = await (supabase as any)
+      const { error } = await (supabase as any)!
         .from('profiles')
         .update({
           full_name: form.full_name,
           bio: form.bio,
           avatar_url: form.avatar_url,
           updated_at: new Date().toISOString()
-        } as Database['public']['Tables']['profiles']['Update'])
+        })
         .eq('id', user.id)
 
       if (error) throw error
@@ -157,17 +158,17 @@ export default function ProfileSettingsPage() {
       }
 
       // Update profile immediately
-      const { error: updateErr } = await (supabase as any)
+      const { error: updateErr } = await (supabase as any)!
         .from('profiles')
-        .update({ avatar_url: url, updated_at: new Date().toISOString() } as Database['public']['Tables']['profiles']['Update'])
+        .update({ avatar_url: url, updated_at: new Date().toISOString() })
         .eq('id', user.id)
       if (updateErr) throw updateErr
 
       setForm(prev => ({ ...prev, avatar_url: url }))
       toast.success('Avatar updated')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Avatar upload error:', err)
-      toast.error(err?.message || 'Failed to upload avatar')
+      toast.error((err as Error)?.message || 'Failed to upload avatar')
     } finally {
       setUploadingAvatar(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -217,9 +218,11 @@ export default function ProfileSettingsPage() {
             <div className="text-center">
               <div className="relative inline-block">
                 {form.avatar_url ? (
-                  <img
+                  <Image
                     src={form.avatar_url}
                     alt="Profile"
+                    width={96}
+                    height={96}
                     className="h-24 w-24 rounded-full object-cover mx-auto"
                   />
                 ) : (
@@ -350,9 +353,9 @@ export default function ProfileSettingsPage() {
                   // Best-effort sign out and redirect
                   await supabase!.auth.signOut()
                   router.push('/')
-                } catch (e: any) {
+                } catch (e: unknown) {
                   console.error(e)
-                  toast.error(e?.message || 'Failed to delete account')
+                  toast.error((e as Error)?.message || 'Failed to delete account')
                 }
               }}
               className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 
 interface FilePreviewProps {
   file: {
@@ -11,7 +12,6 @@ interface FilePreviewProps {
   previewUrl?: string
   isVisible: boolean
   position: { x: number; y: number }
-  onClose: () => void
   onMouseEnter?: () => void
   onMouseLeave?: () => void
 }
@@ -21,7 +21,6 @@ export default function FilePreview({
   previewUrl, 
   isVisible, 
   position, 
-  onClose,
   onMouseEnter,
   onMouseLeave
 }: FilePreviewProps) {
@@ -49,7 +48,7 @@ export default function FilePreview({
           setDocumentLoading(false)
         })
     }
-  }, [isVisible, file.id])
+  }, [isVisible, file])
 
   // Client-side PDF first-page text extraction using pdfjs-dist (avoids server issues)
   useEffect(() => {
@@ -64,32 +63,32 @@ export default function FilePreview({
         setDocumentContent('')
 
         // Dynamically load the UMD build of pdf.js from CDN to avoid bundling issues
-        const ensurePdfJs = () => new Promise<any>((resolve, reject) => {
+        const ensurePdfJs = () => new Promise<unknown>((resolve, reject) => {
           // If already loaded, resolve immediately
-          const existing: any = (window as any).pdfjsLib
+          const existing = (window as { pdfjsLib?: unknown }).pdfjsLib
           if (existing) return resolve(existing)
 
           const script = document.createElement('script')
           script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
           script.async = true
-          script.onload = () => resolve((window as any).pdfjsLib)
+          script.onload = () => resolve((window as unknown as { pdfjsLib: unknown }).pdfjsLib)
           script.onerror = reject
           document.head.appendChild(script)
         })
 
-        const pdfjs: any = await ensurePdfJs()
+        const pdfjs = await ensurePdfJs() as { GlobalWorkerOptions: { workerSrc: string }; getDocument: (options: { url: string; withCredentials: boolean }) => { promise: Promise<{ getPage: (pageNum: number) => Promise<{ getTextContent: () => Promise<{ items: Array<{ str: string }> }> }> }> } }
         pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
 
         // Prefer direct file URL if available on the file object
         // Prefer a signed URL from the API response if available on previewUrl-like field
-        const sourceUrl = (file as any).url || (previewUrl as string | undefined)
+        const sourceUrl = (file as { url?: string }).url || (previewUrl as string | undefined)
         if (!sourceUrl) throw new Error('No PDF URL available')
 
         const loadingTask = pdfjs.getDocument({ url: sourceUrl, withCredentials: false })
         const pdf = await loadingTask.promise
         const page = await pdf.getPage(1)
         const text = await page.getTextContent()
-        const strings = (text.items as any[]).map((i: any) => i.str).filter(Boolean)
+        const strings = text.items.map((i: { str: string }) => i.str).filter(Boolean)
         const snippet = strings.join(' ').trim()
 
         if (!cancelled) {
@@ -107,7 +106,7 @@ export default function FilePreview({
 
     loadPdf()
     return () => { cancelled = true }
-  }, [isVisible, file.name, previewUrl])
+  }, [isVisible, file, previewUrl])
 
   // Reset image state when preview becomes visible or when previewUrl changes
   useEffect(() => {
@@ -116,7 +115,7 @@ export default function FilePreview({
       setImageError(false)
       
       // Preload the image to avoid loading state on first hover
-      const img = new Image()
+      const img = new window.Image()
       img.onload = () => setImageLoaded(true)
       img.onerror = () => setImageError(true)
       img.src = previewUrl
@@ -243,16 +242,19 @@ export default function FilePreview({
                   <div className="text-slate-500 text-sm">Failed to load image</div>
                 </div>
               )}
-              <img
-                src={previewUrl}
-                alt={file.name}
-                className={`w-full h-full object-cover rounded-2xl transition-opacity duration-200 ${
-                  imageLoaded ? 'opacity-100' : 'opacity-0'
-                }`}
-                onLoad={() => setImageLoaded(true)}
-                onError={() => setImageError(true)}
-                style={{ display: imageError ? 'none' : 'block' }}
-              />
+              {previewUrl && (
+                <Image
+                  src={previewUrl}
+                  alt={file.name}
+                  fill
+                  className={`object-cover rounded-2xl transition-opacity duration-200 ${
+                    imageLoaded ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  onLoad={() => setImageLoaded(true)}
+                  onError={() => setImageError(true)}
+                  style={{ display: imageError ? 'none' : 'block' }}
+                />
+              )}
             </>
           )}
 

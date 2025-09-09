@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { 
   Folder, 
-  Image, 
+  Image as ImageIcon, 
   Video, 
   Music, 
   Archive, 
@@ -24,11 +25,11 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase as supabaseClient } from '@/lib/supabase'
-import { fileShareService, databaseHealthCheck } from '@/lib/database.service'
+import { fileShareService } from '@/lib/database.service'
 import type { Database } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import FilePreview from './FilePreview'
-import { formatFileSize, formatDate } from '@/lib/utils'
+// import { formatFileSize, formatDate } from '@/lib/utils'
 
 // Friend type for picker
 type FriendResult = { id: string; username: string | null; email?: string | null; avatar_url?: string | null }
@@ -105,6 +106,77 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
   // Resolve client at call-time to avoid capturing null during module init
   const getSb = (): SupabaseClient<Database> | null => (supabaseClient as unknown as SupabaseClient<Database>) || null
 
+  const fetchFiles = useCallback(async () => {
+    const sb = getSb()
+    if (!user || !sb) {
+      console.log('🔍 FileManager: No user or supabase client, cannot fetch files')
+      return
+    }
+
+    try {
+      console.log('🔍 FileManager: fetching files for user', user.id, 'shared mode:', shared)
+      if (!initialLoaded) setLoading(true)
+
+      let data: FileItem[] | null = null
+      let error: unknown = null
+
+      if (shared) {
+        // Use the proper database service for shared documents
+        console.log('🔍 FileManager: Using database service to fetch shared documents')
+        const sharedDocs = await fileShareService.getSharedDocuments()
+        // Transform Document[] to FileItem[] by adding missing properties
+        data = sharedDocs.map(doc => ({
+          ...doc,
+          url: '', // Will be populated when needed
+          shared_by: doc.user_id,
+          shared_by_username: null,
+          shared_by_email: null
+        }))
+        console.log('🔍 FileManager: fetched shared documents:', data)
+      } else {
+        console.log('🔍 FileManager: Fetching user documents')
+        const res = await sb
+          .from('documents')
+          .select('id,name,file_path,file_size,mime_type,file_category,folder,created_at,visibility')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+        error = res.error
+        data = res.data
+        if (error) {
+          const supabaseError = error as { message?: string; details?: string; hint?: string; code?: string }
+          console.error('🔍 FileManager: Supabase error fetching documents:', {
+            message: supabaseError.message,
+            details: supabaseError.details,
+            hint: supabaseError.hint,
+            code: supabaseError.code,
+          })
+        } else {
+          console.log('🔍 FileManager: User documents result:', { count: data?.length || 0 })
+        }
+        // Transform Document[] to FileItem[] by adding missing properties
+        if (data) {
+          data = data.map(doc => ({
+            ...doc,
+            url: '', // Will be populated when needed
+            shared_by: null,
+            shared_by_username: null,
+            shared_by_email: null
+          }))
+        }
+      }
+
+      if (error) throw error
+      setFiles(data || [])
+      setInitialLoaded(true)
+    } catch (error: unknown) {
+      console.error('Error fetching files:', (error as Error)?.message || error)
+      setFiles([])
+      setInitialLoaded(true)
+    } finally {
+      setLoading(false)
+    }
+  }, [user, shared, initialLoaded])
+
   // Persist preferences when they change
   useEffect(() => {
     try { localStorage.setItem('fm:viewMode', viewMode) } catch {}
@@ -138,59 +210,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     if (refreshKey > 0) {
       fetchFiles()
     }
-  }, [user?.id, refreshKey, shared])
-
-  const fetchFiles = async () => {
-    const sb = getSb()
-    if (!user || !sb) {
-      console.log('🔍 FileManager: No user or supabase client, cannot fetch files')
-      return
-    }
-
-    try {
-      console.log('🔍 FileManager: fetching files for user', user.id, 'shared mode:', shared)
-      if (!initialLoaded) setLoading(true)
-
-      let data: any[] | null = null
-      let error: any = null
-
-      if (shared) {
-        // Use the proper database service for shared documents
-        console.log('🔍 FileManager: Using database service to fetch shared documents')
-        data = await fileShareService.getSharedDocuments()
-        console.log('🔍 FileManager: fetched shared documents:', data)
-      } else {
-        console.log('🔍 FileManager: Fetching user documents')
-        const res = await sb
-          .from('documents')
-          .select('id,name,file_path,file_size,mime_type,file_category,folder,created_at,visibility')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-        error = (res as any).error
-        data = (res as any).data
-        if (error) {
-          console.error('🔍 FileManager: Supabase error fetching documents:', {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code,
-          })
-        } else {
-          console.log('🔍 FileManager: User documents result:', { count: data?.length || 0 })
-        }
-      }
-
-      if (error) throw error
-      setFiles(data || [])
-      setInitialLoaded(true)
-    } catch (error: any) {
-      console.error('Error fetching files:', error?.message || error)
-      setFiles([])
-      setInitialLoaded(true)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [user?.id, refreshKey, shared, fetchFiles, user])
 
   const deleteFile = async (fileId: string, filePath: string) => {
     const sb = getSb()
@@ -231,7 +251,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
 
       const { error } = await (sb as any)
         .from('documents')
-        .update(updatePayload as any)
+        .update(updatePayload)
         .eq('id', fileId)
 
       if (error) throw error
@@ -307,9 +327,9 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
           
           toast.success(`Downloading ${responseData.fileName || file.name}`)
           return
-        } catch (fetchError: any) {
+        } catch (fetchError: unknown) {
           console.error('🔍 FileManager: Fetch error:', fetchError)
-          toast.error(`Download failed: ${fetchError.message}`)
+          toast.error(`Download failed: ${(fetchError as Error).message}`)
           return
         }
       }
@@ -367,7 +387,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
         setFriendResults([])
         return
       }
-      const friendIds = Array.from(new Set((rows || []).map((r: any) => (r.requester === user.id ? r.recipient : r.requester))))
+      const friendIds = Array.from(new Set((rows || []).map((r: { requester: string; recipient: string }) => (r.requester === user.id ? r.recipient : r.requester))))
       if (friendIds.length === 0) { setFriendResults([]); return }
       const { data: profiles, error: pErr } = await sb
         .from('profiles')
@@ -379,7 +399,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
         return
       }
       setFriendResults((profiles || []) as FriendResult[])
-    } catch (e) {
+    } catch {
       setFriendResults([])
     } finally {
       setFriendLoading(false)
@@ -394,7 +414,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
       const sb = getSb()
       if (!sb) return
       // Check if already shared
-      const { data: existingShare, error: checkError } = await (sb as any)
+      const { data: existingShare, error: checkError } = await sb
         .from('file_shares')
         .select('id')
         .eq('document_id', shareTargetFile.id)
@@ -418,8 +438,8 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
       if (error) throw error
       toast.success(`Shared "${shareTargetFile.name}" with @${friend.username || friend.email}`)
       setShareTargetFile(null)
-    } catch (e: any) {
-      toast.error(e?.message || 'Failed to share')
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Failed to share')
     }
   }
 
@@ -429,7 +449,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     const baseClass = 'h-8 w-8'
 
     // Images get thumbnails elsewhere; this is the fallback icon
-    if (file.file_category === 'image') return <Image className={`${baseClass} text-blue-500`} />
+    if (file.file_category === 'image') return <ImageIcon className={`${baseClass} text-blue-500`} />
 
     if (file.file_category === 'video' || mime.startsWith('video/')) return <Video className={`${baseClass} text-purple-500`} />
     if (file.file_category === 'audio' || mime.startsWith('audio/')) return <Music className={`${baseClass} text-green-500`} />
@@ -461,7 +481,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     const previewUrl = previewUrls[file.id]
     const imgClass = size === 'large' ? 'h-20 w-20 object-cover rounded' : 'h-10 w-10 object-cover rounded'
     if (file.file_category === 'image' && previewUrl) {
-      return <img src={previewUrl} alt="" className={imgClass} />
+      return <Image src={previewUrl} alt="File preview" width={size === 'large' ? 80 : 40} height={size === 'large' ? 80 : 40} className={imgClass} />
     }
     return getAccurateFileIcon(file)
   }
@@ -527,15 +547,6 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     }, 200)
   }
 
-  const closePreview = () => {
-    setPreviewVisible(false)
-    setPreviewFile(null)
-    setPreviewHovered(false)
-    if (previewTimeoutRef.current) {
-      clearTimeout(previewTimeoutRef.current)
-      previewTimeoutRef.current = null
-    }
-  }
 
   // Filter files based on search and filters
   const filteredFiles = files.filter(file => {
@@ -877,7 +888,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Share "{shareTargetFile.name}"</h4>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Share &quot;{shareTargetFile.name}&quot;</h4>
               <button onClick={() => setShareTargetFile(null)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
             <div className="max-h-60 overflow-auto space-y-1">
@@ -893,7 +904,7 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
                     className="w-full text-left px-3 py-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2"
                   >
                     {fr.avatar_url ? (
-                      <img src={fr.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover" />
+                      <Image src={fr.avatar_url} alt="Friend avatar" width={24} height={24} className="h-6 w-6 rounded-full object-cover" />
                     ) : (
                       <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-600" />
                     )}
@@ -913,7 +924,6 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
           previewUrl={previewUrls[previewFile.id]}
           isVisible={previewVisible}
           position={previewPosition}
-          onClose={closePreview}
           onMouseEnter={handlePreviewEnter}
           onMouseLeave={handlePreviewLeave}
         />

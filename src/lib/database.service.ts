@@ -8,7 +8,6 @@ import type {
   ConversationParticipant,
   Message,
   MessageReaction,
-  MessageReadReceipt,
   UserPresence,
   ChatSettings
 } from './database.types'
@@ -298,8 +297,8 @@ export const fileShareService = {
       }
 
       // Extract document IDs and sharer IDs
-      const documentIds = basicShares.map((share: any) => share.document_id)
-      const sharedByIds = Array.from(new Set(basicShares.map((share: any) => share.shared_by)))
+      const documentIds = basicShares.map((share: { document_id: string }) => share.document_id)
+      const sharedByIds = Array.from(new Set(basicShares.map((share: { shared_by: string }) => share.shared_by)))
       console.log('🔍 Database service: Document IDs to fetch:', documentIds)
 
       // Now fetch the actual documents using the IDs
@@ -315,7 +314,7 @@ export const fileShareService = {
       }
 
       // Fetch profiles for sharers to get usernames/emails
-      let profilesById: Record<string, { id: string; username: string | null; email: string | null }> = {}
+      const profilesById: Record<string, { id: string; username: string | null; email: string | null }> = {}
       if (sharedByIds.length > 0) {
         const { data: profs, error: profsError } = await sb
           .from('profiles')
@@ -324,16 +323,16 @@ export const fileShareService = {
         if (profsError) {
           console.error('Error fetching sharer profiles:', profsError)
         } else {
-          ;(profs || []).forEach((p: any) => { profilesById[p.id] = { id: p.id, username: p.username, email: p.email } })
+          ;(profs || []).forEach((p: { id: string; username: string; email: string }) => { profilesById[p.id] = { id: p.id, username: p.username, email: p.email } })
         }
       }
 
       // Map document to associated share (first matching if multiple)
-      const docIdToShare = new Map<string, any>()
-      basicShares.forEach((s: any) => { if (!docIdToShare.has(s.document_id)) docIdToShare.set(s.document_id, s) })
+      const docIdToShare = new Map<string, { document_id: string; shared_by: string }>()
+      basicShares.forEach((s: { document_id: string; shared_by: string }) => { if (!docIdToShare.has(s.document_id)) docIdToShare.set(s.document_id, s) })
 
       // Attach sharer info to each document row for UI convenience
-      const enriched = (documentsData || []).map((doc: any) => {
+      const enriched = (documentsData || []).map((doc: { id: string; [key: string]: unknown }) => {
         const share = docIdToShare.get(doc.id)
         const sharer = share ? profilesById[share.shared_by] : undefined
         return {
@@ -855,7 +854,7 @@ export const chatService = {
         is_typing: conversationId !== null,
         typing_in_conversation_id: conversationId,
         last_seen: new Date().toISOString()
-      } as any)
+      })
 
     if (error) {
       console.error('Error setting typing status:', error)
@@ -983,14 +982,14 @@ export const databaseHealthCheck = {
 
       for (const table of tables) {
         try {
-          const { data, error } = await sb
+          const { error } = await sb
             .from(table)
             .select('*')
             .limit(1)
           
           results[table] = !error
           
-        } catch (e) {
+        } catch {
           results[table] = false
           
         }
@@ -1003,7 +1002,7 @@ export const databaseHealthCheck = {
     }
   },
 
-  async checkFileSharesStructure(): Promise<{ [key: string]: any }> {
+  async checkFileSharesStructure(): Promise<{ [key: string]: unknown }> {
     const sb = getSb()
     if (!sb) return { error: 'No database connection' }
 

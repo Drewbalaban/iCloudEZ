@@ -39,8 +39,8 @@ export default function UpdatePassword() {
 
       setMessage('Your password has been updated. You can now sign in.')
       setTimeout(() => router.push('/auth/signin'), 1200)
-    } catch (err: any) {
-      setError(err.message || 'Failed to update password')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update password')
     } finally {
       setLoading(false)
     }

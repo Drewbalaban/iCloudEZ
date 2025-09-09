@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -9,7 +9,7 @@ import type { Database } from '@/lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase as supabaseClient } from '@/lib/supabase'
 import { toast } from 'sonner'
-import { Users, Share2, X, Trash2, Shield, FileText, Plus, Inbox } from 'lucide-react'
+import { Users, Share2, Trash2, Shield, FileText, Plus, Inbox } from 'lucide-react'
 
 type Doc = Database['public']['Tables']['documents']['Row']
 
@@ -32,12 +32,7 @@ export default function SharingManagerPage() {
     if (!loading && !user) router.push('/auth/signin')
   }, [user, loading, router])
 
-  useEffect(() => {
-    if (!user) return
-    loadData()
-  }, [user?.id])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const sb = getSb()
     if (!sb || !user) return
     try {
@@ -53,7 +48,7 @@ export default function SharingManagerPage() {
         .eq('shared_by', user.id)
         .order('created_at', { ascending: false })
       if (sharesErr) throw sharesErr
-      setShares((sharesData as any) || [])
+      setShares(sharesData || [])
 
       // Load shares received by user
       const { data: receivedData, error: receivedErr } = await sb
@@ -62,12 +57,12 @@ export default function SharingManagerPage() {
         .eq('shared_with', user.id)
         .order('created_at', { ascending: false })
       if (receivedErr) throw receivedErr
-      setReceivedShares((receivedData as any) || [])
+      setReceivedShares(receivedData || [])
 
       // Fetch profile usernames for participants
       const uniqueUserIds = Array.from(new Set([
-        ...(((sharesData as any) || []) as Array<{ shared_with: string }>).map(s => s.shared_with),
-        ...(((receivedData as any) || []) as Array<{ shared_by: string }>).map(s => s.shared_by),
+        ...((sharesData || []) as Array<{ shared_with: string }>).map(s => s.shared_with),
+        ...((receivedData || []) as Array<{ shared_by: string }>).map(s => s.shared_by),
       ]))
       if (uniqueUserIds.length > 0) {
         const { data: profs, error: profErr } = await sb
@@ -76,16 +71,21 @@ export default function SharingManagerPage() {
           .in('id', uniqueUserIds)
         if (profErr) throw profErr
         const map: Record<string, { id: string; username: string; email: string }> = {}
-        ;(((profs as any[]) || [])).forEach((p: any) => { map[p.id] = { id: p.id, username: p.username, email: p.email } })
+        ;(profs || []).forEach((p: { id: string; username: string; email: string }) => { map[p.id] = { id: p.id, username: p.username, email: p.email } })
         setProfilesById(map)
       } else {
         setProfilesById({})
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Sharing manager load error:', e)
       toast.error('Failed to load sharing data')
     }
-  }
+  }, [user, selectedDocId])
+
+  useEffect(() => {
+    if (!user) return
+    loadData()
+  }, [user?.id, loadData, user])
 
   const sharesByDoc = useMemo(() => {
     const grouped: Record<string, typeof shares> = {}
@@ -109,11 +109,11 @@ export default function SharingManagerPage() {
       // Try username
       let recipientId: string | null = null
       const uname = targetUsername.trim().replace(/^@+/, '')
-      let res: any = await sb.from('profiles').select('id').ilike('username', uname).single()
-      if (!res.error && (res.data as any)?.id) recipientId = (res.data as any).id
+      let res = await (sb as any).from('profiles').select('id').ilike('username', uname).single()
+      if (!res.error && res.data?.id) recipientId = res.data.id
       if (!recipientId) {
-        res = await sb.from('profiles').select('id').ilike('email', targetUsername.trim()).single()
-        if (!res.error && (res.data as any)?.id) recipientId = (res.data as any).id
+        res = await (sb as any).from('profiles').select('id').ilike('email', targetUsername.trim()).single()
+        if (!res.error && res.data?.id) recipientId = res.data.id
       }
       if (!recipientId) { toast.error('User not found'); return }
       if (recipientId === user.id) { toast.error('Cannot share with yourself'); return }
@@ -128,16 +128,16 @@ export default function SharingManagerPage() {
       if (existing) { toast.info('Already shared with this user'); return }
       if (dupErr && dupErr.code && dupErr.code !== 'PGRST116') { throw dupErr }
 
-      const { error } = await (sb
-        .from('file_shares') as any)
-        .insert({ document_id: selectedDocId, shared_by: user.id, shared_with: recipientId, permission_level: 'read', expires_at: null as any } as Database['public']['Tables']['file_shares']['Insert'])
+      const { error } = await ((sb as any)
+        .from('file_shares')
+        .insert({ document_id: selectedDocId, shared_by: user.id, shared_with: recipientId, permission_level: 'read', expires_at: null }))
       if (error) throw error
       toast.success('Share created')
       setTargetUsername('')
       await loadData()
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Create share error:', e)
-      toast.error(e?.message || 'Failed to create share')
+      toast.error((e as Error)?.message || 'Failed to create share')
     } finally {
       setBusy(false)
     }
@@ -151,7 +151,7 @@ export default function SharingManagerPage() {
       if (error) throw error
       toast.success('Share revoked')
       setShares(prev => prev.filter(s => s.id !== shareId))
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Revoke share error:', e)
       toast.error('Failed to revoke share')
     }

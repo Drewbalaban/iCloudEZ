@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { 
@@ -92,33 +93,36 @@ export default function UserProfilePage() {
         .eq('username', username)
         .single()
 
-      if (profileError) throw profileError
+      if (profileError || !profileData) throw profileError || new Error('Profile not found')
+
+      const profile = profileData as { id: string; username: string; email: string; avatar_url: string | null; created_at: string }
 
       // Get file counts
       const { count: totalFiles } = await supabase!
         .from('documents')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', (profileData as any).id)
+        .eq('user_id', profile.id)
 
       const { count: publicFiles } = await supabase!
         .from('documents')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', (profileData as any).id)
+        .eq('user_id', profile.id)
         .eq('visibility', 'public')
 
       setProfile({
-        ...(profileData as any),
+        ...profile,
+        avatar_url: profile.avatar_url || undefined,
         total_files: totalFiles || 0,
         public_files: publicFiles || 0
       })
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching profile:', error)
       
       // Check if it's a database table error
-      if (error?.code === '42P01') {
+      if ((error as { code?: string })?.code === '42P01') {
         setError('Database not set up. Please run the database schema first.')
-      } else if (error?.code === 'PGRST116') {
+      } else if ((error as { code?: string })?.code === 'PGRST116') {
         setError('User not found')
       } else {
         setError('Failed to load profile')
@@ -139,22 +143,24 @@ export default function UserProfilePage() {
 
       if (!profileData) return
 
+      const profile = profileData as { id: string; username: string; email: string; avatar_url: string | null; created_at: string }
+
       // Get public files
       const { data: files, error } = await supabase!
         .from('documents')
         .select('*')
-        .eq('user_id', (profileData as any).id)
+        .eq('user_id', profile.id)
         .eq('visibility', 'public')
         .order('created_at', { ascending: false })
 
       if (error) throw error
       setPublicFiles(files || [])
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching public files:', error)
       
       // If it's a table not found error, set empty files array
-      if (error?.code === '42P01') {
+      if ((error as { code?: string })?.code === '42P01') {
         console.log('Documents table not found. Setting empty files array.')
         setPublicFiles([])
       }
@@ -197,7 +203,7 @@ export default function UserProfilePage() {
     const category = (file.file_category || '').toLowerCase()
     const isImage = (category === 'image' || (file.mime_type || '').toLowerCase().startsWith('image/'))
     if (isImage && previewUrl) {
-      return <img src={previewUrl} alt="" className={imgClass} />
+      return <Image src={previewUrl} alt="File preview" width={size === 'large' ? 80 : 40} height={size === 'large' ? 80 : 40} className={imgClass} />
     }
     return getAccurateFileIcon(file)
   }
@@ -242,22 +248,12 @@ export default function UserProfilePage() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error downloading file:', error)
-      alert(error?.message || 'Failed to download file')
+      alert((error as Error)?.message || 'Failed to download file')
     }
   }
 
-  const getFileIcon = (fileType: string) => {
-    switch (fileType) {
-      case 'images': return <FileText className="h-8 w-8 text-blue-500" />
-      case 'videos': return <FileText className="h-8 w-8 text-purple-500" />
-      case 'audio': return <FileText className="h-8 w-8 text-green-500" />
-      case 'documents': return <FileText className="h-8 w-8 text-red-500" />
-      case 'archives': return <FileText className="h-8 w-8 text-orange-500" />
-      default: return <FileText className="h-8 w-8 text-gray-500" />
-    }
-  }
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes'
@@ -334,9 +330,11 @@ export default function UserProfilePage() {
             {/* Avatar */}
             <div className="flex-shrink-0">
               {profile.avatar_url ? (
-                <img
+                <Image
                   src={profile.avatar_url}
                   alt={profile.username}
+                  width={96}
+                  height={96}
                   className="h-24 w-24 rounded-full object-cover"
                 />
               ) : (

@@ -1,42 +1,66 @@
-// Centralized environment variable access with basic validation
+// Centralized environment variable access with strict runtime validation
+// - Validates required public vars
+// - Parses server-only secrets (do not import in client components when using secrets)
 
-type EnvShape = {
-  NEXT_PUBLIC_SUPABASE_URL: string | undefined
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: string | undefined
-  SUPABASE_SERVICE_ROLE_KEY: string | undefined
-  NEXT_PUBLIC_APP_URL: string | undefined
-}
+import { z } from 'zod'
 
-const rawEnv: EnvShape = {
-  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-}
+// Public variables (safe to expose to the browser). These must exist for the app to run.
+const PublicSchema = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: z
+    .string()
+    .url('NEXT_PUBLIC_SUPABASE_URL must be a valid URL (e.g., https://xyzcompany.supabase.co)'),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z
+    .string()
+    .min(1, 'NEXT_PUBLIC_SUPABASE_ANON_KEY is required'),
+  NEXT_PUBLIC_APP_URL: z
+    .string()
+    .url('NEXT_PUBLIC_APP_URL must be a valid URL')
+    .default('http://localhost:3000'),
+})
 
-function requireEnv(name: keyof EnvShape): string {
-  const value = rawEnv[name]
-  if (!value || value.trim().length === 0) {
-    throw new Error(`Missing required environment variable: ${name}`)
+// Server-only variables (never expose to client). Optional unless a path explicitly requires them.
+const ServerSchema = z.object({
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+})
+
+function parsePublicEnv() {
+  const parsed = PublicSchema.safeParse({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+  })
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map(i => `- ${i.path.join('.')}: ${i.message}`).join('\n')
+    throw new Error(`Invalid public environment configuration.\n${issues}`)
   }
-  return value
+  return parsed.data
 }
 
-// Export normalized constants
-export const PUBLIC_SUPABASE_URL = requireEnv('NEXT_PUBLIC_SUPABASE_URL')
-export const PUBLIC_SUPABASE_ANON_KEY = requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+function parseServerEnv() {
+  const parsed = ServerSchema.safeParse({
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  })
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map(i => `- ${i.path.join('.')}: ${i.message}`).join('\n')
+    throw new Error(`Invalid server environment configuration.\n${issues}`)
+  }
+  return parsed.data
+}
 
-// Optional on some routes; do not throw on missing
-export const SUPABASE_SERVICE_ROLE_KEY = rawEnv.SUPABASE_SERVICE_ROLE_KEY
+// Parse once at module load; Next.js only exposes NEXT_PUBLIC_* to the client bundle
+const PUBLIC = parsePublicEnv()
+const SERVER = parseServerEnv()
 
-export const PUBLIC_APP_URL = rawEnv.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+export const PUBLIC_SUPABASE_URL = PUBLIC.NEXT_PUBLIC_SUPABASE_URL
+export const PUBLIC_SUPABASE_ANON_KEY = PUBLIC.NEXT_PUBLIC_SUPABASE_ANON_KEY
+export const PUBLIC_APP_URL = PUBLIC.NEXT_PUBLIC_APP_URL
 
-// Helper for places that want all at once
+// Optional secret for server-side use only
+export const SUPABASE_SERVICE_ROLE_KEY = SERVER.SUPABASE_SERVICE_ROLE_KEY
+
 export const env = {
   PUBLIC_SUPABASE_URL,
   PUBLIC_SUPABASE_ANON_KEY,
-  SUPABASE_SERVICE_ROLE_KEY,
   PUBLIC_APP_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
 }
-
-

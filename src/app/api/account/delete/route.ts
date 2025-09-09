@@ -35,28 +35,31 @@ export async function POST(req: NextRequest) {
       const toDelete: string[] = []
       if (list && list.length) {
         for (const item of list) {
-          // If file
-          if ((item as any).id === undefined && item.name) {
-            toDelete.push(`${userId}/${item.name}`)
+          // If file (folders have id, files don't) - check if item has name property
+          if (!('id' in item) && 'name' in item) {
+            const fileItem = item as { name: string }
+            if (fileItem.name) {
+              toDelete.push(`${userId}/${fileItem.name}`)
+            }
           }
         }
       }
       if (toDelete.length) {
         await adminForStorage.storage.from('documents').remove(toDelete)
       }
-    } catch (_) {
+    } catch {
       // ignore storage cleanup errors
     }
 
     // Delete the user via admin API (cascades will remove profile/documents)
     const admin = createClient(supabaseUrl, serviceKey)
-    const { error: delErr } = await (admin as any).auth.admin.deleteUser(userId)
+    const { error: delErr } = await admin.auth.admin.deleteUser(userId)
     if (delErr) {
       return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

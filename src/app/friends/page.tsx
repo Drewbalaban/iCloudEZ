@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase as supabaseClient } from '@/lib/supabase'
@@ -10,32 +10,28 @@ import { Users, UserPlus, Check, X, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 type ProfileLite = { id: string; username: string; email: string }
+type FriendRequest = { id: string; requester: string; recipient: string; status: string; created_at: string }
 
 export default function FriendsPage() {
   const { user, loading } = useAuth()
   const [q, setQ] = useState('')
   const [results, setResults] = useState<ProfileLite[]>([])
-  const [pending, setPending] = useState<any[]>([])
-  const [incoming, setIncoming] = useState<any[]>([])
+  const [pending, setPending] = useState<FriendRequest[]>([])
+  const [incoming, setIncoming] = useState<FriendRequest[]>([])
   const [friends, setFriends] = useState<ProfileLite[]>([])
   const [profiles, setProfiles] = useState<Record<string, ProfileLite>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const getSb = (): SupabaseClient<Database> | null => (supabaseClient as unknown as SupabaseClient<Database>) || null
 
-  useEffect(() => {
-    if (!user || loading) return
-    refreshLists()
-  }, [user?.id, loading])
-
-  const refreshLists = async () => {
+  const refreshLists = useCallback(async () => {
     const sb = getSb()
     if (!sb || !user) return
     try {
       // Pending sent
       const { data: sent } = await sb
         .from('friend_requests')
-        .select('id,recipient,status,created_at')
+        .select('id,requester,recipient,status,created_at')
         .eq('requester', user.id)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
@@ -44,7 +40,7 @@ export default function FriendsPage() {
       // Incoming
       const { data: recv } = await sb
         .from('friend_requests')
-        .select('id,requester,status,created_at')
+        .select('id,requester,recipient,status,created_at')
         .eq('recipient', user.id)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
@@ -56,28 +52,33 @@ export default function FriendsPage() {
         .select('requester,recipient,status')
         .eq('status', 'accepted')
         .or(`requester.eq.${user.id},recipient.eq.${user.id}`)
-      const friendIds = Array.from(new Set((accepted || []).map((r: any) => r.requester === user.id ? r.recipient : r.requester)))
+      const friendIds = Array.from(new Set((accepted || []).map((r: { requester: string; recipient: string }) => r.requester === user.id ? r.recipient : r.requester)))
       // Collect all ids we need profile info for
       const neededIds = Array.from(new Set([
         ...friendIds,
-        ...((sent || []).map((r: any) => r.recipient)),
-        ...((recv || []).map((r: any) => r.requester)),
+        ...((sent || []).map((r: { requester: string; recipient: string }) => r.recipient)),
+        ...((recv || []).map((r: { requester: string; recipient: string }) => r.requester)),
       ].filter(Boolean)))
       if (neededIds.length) {
         const { data: profs } = await sb.from('profiles').select('id,username,email').in('id', neededIds)
         const map: Record<string, ProfileLite> = {}
-        ;(profs || []).forEach((p: any) => { map[p.id] = p })
+        ;(profs || []).forEach((p: ProfileLite) => { map[p.id] = p })
         setProfiles(map)
         // friends list from map
-        setFriends(friendIds.map(fid => map[fid]).filter(Boolean) as any)
+        setFriends(friendIds.map(fid => map[fid]).filter(Boolean) as ProfileLite[])
       } else {
         setProfiles({})
         setFriends([])
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
-  }
+  }, [user])
+
+  useEffect(() => {
+    if (!user || loading) return
+    refreshLists()
+  }, [user?.id, loading, refreshLists, user])
 
   const onSearch = async () => {
     try {
@@ -98,8 +99,8 @@ export default function FriendsPage() {
       toast.success('Request sent')
       setResults(prev => prev.filter(p => p.id !== recipientId))
       refreshLists()
-    } catch (e: any) {
-      toast.error(e?.message || 'Failed to send request')
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Failed to send request')
     } finally {
       setBusyId(null)
     }
@@ -113,8 +114,8 @@ export default function FriendsPage() {
       if (!res.ok) throw new Error(json.error || 'Failed')
       toast.success(action === 'accept' ? 'Friend added' : 'Request declined')
       refreshLists()
-    } catch (e: any) {
-      toast.error(e?.message || 'Failed to respond')
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Failed to respond')
     } finally {
       setBusyId(null)
     }
@@ -230,8 +231,8 @@ export default function FriendsPage() {
                           if (!res.ok) throw new Error(json.error || 'Failed')
                           toast.success('Removed from friends')
                           refreshLists()
-                        } catch (e: any) {
-                          toast.error(e?.message || 'Failed to remove')
+                        } catch (e: unknown) {
+                          toast.error((e as Error)?.message || 'Failed to remove')
                         }
                       }}
                       className="text-xs px-2 py-1 rounded bg-red-600 text-white"

@@ -73,7 +73,7 @@ export async function PUT(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       user_id: user.id,
       last_seen: new Date().toISOString()
     }

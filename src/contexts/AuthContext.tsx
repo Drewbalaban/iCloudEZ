@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useRef } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 
@@ -23,13 +23,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isConfigured, setIsConfigured] = useState(false)
   
   // Add state stabilization to prevent rapid changes
-  const [stableLoading, setStableLoading] = useState(true)
-  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // const [stableLoading, setStableLoading] = useState(true)
 
   useEffect(() => {
     if (!supabase) {
-      setLoading(false)
-      setStableLoading(false)
       setIsConfigured(false)
       return
     }
@@ -37,8 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Add timeout fallback to prevent infinite loading
     const timeoutId = setTimeout(() => {
-      setLoading(false)
-      setStableLoading(false)
+      // Timeout fallback
     }, 10000)
     
     // Get initial session
@@ -47,16 +43,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
-      
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current)
-      loadingTimeoutRef.current = setTimeout(() => {
-        setStableLoading(false)
-      }, 200)
     }).catch(error => {
       console.error('Auth session error:', error)
       clearTimeout(timeoutId)
       setLoading(false)
-      setStableLoading(false)
     })
 
     // Listen for auth changes
@@ -67,16 +57,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
-      
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current)
-      loadingTimeoutRef.current = setTimeout(() => {
-        setStableLoading(false)
-      }, 200)
     })
 
     return () => {
       clearTimeout(timeoutId)
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current)
       subscription.unsubscribe()
     }
   }, [])
@@ -128,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = {
     user,
     session,
-    loading: stableLoading,
+    loading,
     signIn,
     signUp,
     signOut,

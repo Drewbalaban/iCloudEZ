@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
+import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
-import { Upload, X, Image, File, Video, Music, Archive, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+import { Upload, X, Image as ImageIcon, File, Video, Music, Archive, FileText, CheckCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 export type AutoUploadHandle = {
@@ -19,7 +20,7 @@ interface UploadFile {
 }
 
 interface AutoUploadProps {
-  onUploadComplete?: (files: any[]) => void
+  onUploadComplete?: (files: UploadFile[]) => void
   folder?: string
   multiple?: boolean
   accept?: string
@@ -46,7 +47,7 @@ const AutoUpload = forwardRef<AutoUploadHandle, AutoUploadProps>(function AutoUp
   }), [])
 
   const getFileIcon = (file: File) => {
-    if (file.type.startsWith('image/')) return <Image className="h-8 w-8 text-blue-500" />
+    if (file.type.startsWith('image/')) return <ImageIcon className="h-8 w-8 text-blue-500" />
     if (file.type.startsWith('video/')) return <Video className="h-8 w-8 text-purple-500" />
     if (file.type.startsWith('audio/')) return <Music className="h-8 w-8 text-green-500" />
     if (file.type.includes('pdf') || file.type.includes('document')) return <FileText className="h-8 w-8 text-red-500" />
@@ -62,12 +63,12 @@ const AutoUpload = forwardRef<AutoUploadHandle, AutoUploadProps>(function AutoUp
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  const validateFile = (file: File): string | null => {
+  const validateFile = useCallback((file: File): string | null => {
     if (file.size > maxSize * 1024 * 1024) {
       return `File size must be less than ${maxSize}MB`
     }
     return null
-  }
+  }, [maxSize])
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     const fileArray = Array.from(newFiles)
@@ -102,20 +103,13 @@ const AutoUpload = forwardRef<AutoUploadHandle, AutoUploadProps>(function AutoUp
     })
 
     setFiles(prev => [...prev, ...validFiles])
-  }, [maxSize])
-
-  // Auto-start upload when pending files are present
-  useEffect(() => {
-    if (user && !isUploading && files.some(f => f.status === 'pending')) {
-      uploadFiles()
-    }
-  }, [files, isUploading, user])
+  }, [validateFile])
 
   const removeFile = (id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id))
   }
 
-  const uploadFiles = async () => {
+  const uploadFiles = useCallback(async () => {
     if (!user || files.length === 0) return
 
     setIsUploading(true)
@@ -144,7 +138,7 @@ const AutoUpload = forwardRef<AutoUploadHandle, AutoUploadProps>(function AutoUp
       if (result.success) {
         // Update file statuses
         setFiles(prev => prev.map(f => {
-          const uploaded = result.uploaded.find((u: any) => u.fileName === f.file.name)
+          const uploaded = result.uploaded.find((u: { fileName: string }) => u.fileName === f.file.name)
           if (uploaded) {
             return { ...f, status: 'success', progress: 100 }
           }
@@ -164,7 +158,14 @@ const AutoUpload = forwardRef<AutoUploadHandle, AutoUploadProps>(function AutoUp
     } finally {
       setIsUploading(false)
     }
-  }
+  }, [user, files, onUploadComplete, folder])
+
+  // Auto-start upload when pending files are present
+  useEffect(() => {
+    if (user && !isUploading && files.some(f => f.status === 'pending')) {
+      uploadFiles()
+    }
+  }, [files, isUploading, user, uploadFiles])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -266,7 +267,7 @@ const AutoUpload = forwardRef<AutoUploadHandle, AutoUploadProps>(function AutoUp
                 {/* File Preview/Icon */}
                 <div className="flex-shrink-0">
                   {file.preview ? (
-                    <img src={file.preview} alt="" className="h-12 w-12 object-cover rounded" />
+                    <Image src={file.preview} alt="File preview" width={48} height={48} className="h-12 w-12 object-cover rounded" />
                   ) : (
                     getFileIcon(file.file)
                   )}

@@ -1,51 +1,41 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
-import { initGlobalSync, getGlobalSync, stopGlobalSync } from '@/lib/realtimeSync'
+import { initGlobalSync, stopGlobalSync } from '@/lib/realtimeSync'
 import AutoUpload, { AutoUploadHandle } from '@/components/AutoUpload'
 import PageLoader from '@/components/PageLoader'
 import FileManager from '@/components/FileManager'
-import { supabase } from '@/lib/supabase'
 import { 
   Cloud, 
-  Upload, 
-  Folder, 
-  File, 
-  Search, 
-  Grid, 
-  List, 
   MoreVertical,
   LogOut,
   Settings,
   User,
   Share2,
-  Wifi,
-  WifiOff,
-  Smartphone,
-  Monitor,
   Users
 } from 'lucide-react'
 
-interface Document {
-  id: string
-  name: string
-  file_size: number
-  mime_type: string
-  created_at: string
-  folder_id: string | null
-}
+// interface Document {
+//   id: string
+//   name: string
+//   file_size: number
+//   mime_type: string
+//   created_at: string
+//   folder_id: string | null
+// }
 
-interface Folder {
-  id: string
-  name: string
-  created_at: string
-}
+// interface Folder {
+//   id: string
+//   name: string
+//   created_at: string
+// }
 
 export default function Dashboard() {
-  const { user, signOut, loading } = useAuth()
+  const { user, signOut } = useAuth()
   const router = useRouter()
   const [displayName, setDisplayName] = useState<string>('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
@@ -53,147 +43,128 @@ export default function Dashboard() {
   const renderCount = useRef(0)
   renderCount.current += 1
   
-  // Add error boundary
-  try {
-    const [documents, setDocuments] = useState<Document[]>([])
-    const [folders, setFolders] = useState<Folder[]>([])
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-    const [searchQuery, setSearchQuery] = useState('')
-    const [currentFolder, setCurrentFolder] = useState<string | null>(null)
-    const [syncStatus, setSyncStatus] = useState({
-      isConnected: false,
-      hasFileWatcher: false,
-      deviceType: 'unknown'
-    })
-    const [showUpload, setShowUpload] = useState(false)
-    
-    // Trigger FileManager refresh after successful uploads
-    const [filesRefreshKey, setFilesRefreshKey] = useState(0)
-    const uploaderRef = useRef<AutoUploadHandle>(null)
+  // All hooks must be called unconditionally
+  const [currentFolder, setCurrentFolder] = useState<string | null>(null)
+  const [syncStatus, setSyncStatus] = useState({
+    isConnected: false,
+    hasFileWatcher: false,
+    deviceType: 'unknown'
+  })
+  
+  // Trigger FileManager refresh after successful uploads
+  const [filesRefreshKey, setFilesRefreshKey] = useState(0)
+  const uploaderRef = useRef<AutoUploadHandle>(null)
 
-    // Add stable loading state to prevent flashing
-    const [stableLoading, setStableLoading] = useState(true)
-    const [hasInitialized, setHasInitialized] = useState(false)
+  // Add stable loading state to prevent flashing
+  const [stableLoading, setStableLoading] = useState(true)
+  const [hasInitialized, setHasInitialized] = useState(false)
 
-    useEffect(() => {}, [user, loading, stableLoading])
+  useEffect(() => {}, [user, stableLoading])
 
-    // Stabilize loading state to prevent flashing
-    useEffect(() => {
-      if (!loading && !hasInitialized) {
-        // Add a small delay to prevent rapid state changes
-        const timer = setTimeout(() => {
-          setStableLoading(false)
-          setHasInitialized(true)
-        }, 100)
-        
-        return () => clearTimeout(timer)
-      }
-    }, [loading, hasInitialized])
+  // Stabilize loading state to prevent flashing
+  useEffect(() => {
+    if (!hasInitialized) {
+      // Add a small delay to prevent rapid state changes
+      const timer = setTimeout(() => {
+        setStableLoading(false)
+        setHasInitialized(true)
+      }, 100)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [hasInitialized])
 
-    useEffect(() => {
-      if (!loading && !user) {
-        router.push('/auth/signin')
-      }
-      // Load profile username for header
-      (async () => {
-        try {
-          if (!user) return
-          const res = await fetch(`/api/profile/${user.id}`)
-          if (res.ok) {
-            const json = await res.json()
-            setDisplayName(json.username || user.email || '')
-            setAvatarUrl(json.avatar_url || null)
-          } else {
-            setDisplayName(user.email || '')
-            setAvatarUrl(null)
-          }
-        } catch {
-          setDisplayName(user?.email || '')
+  useEffect(() => {
+    if (!user) {
+      router.push('/auth/signin')
+    }
+    // Load profile username for header
+    (async () => {
+      try {
+        if (!user) return
+        const res = await fetch(`/api/profile/${user.id}`)
+        if (res.ok) {
+          const json = await res.json()
+          setDisplayName(json.username || user.email || '')
+          setAvatarUrl(json.avatar_url || null)
+        } else {
+          setDisplayName(user.email || '')
           setAvatarUrl(null)
         }
-      })()
-    }, [user, loading, router])
-
-    // Initialize real-time sync when user logs in
-    useEffect(() => {
-      if (user && !syncStatus.isConnected) {
-        initializeSync()
+      } catch {
+        setDisplayName(user?.email || '')
+        setAvatarUrl(null)
       }
+    })()
+  }, [user, router])
 
-      return () => {
-        if (syncStatus.isConnected) {
-          stopGlobalSync()
-        }
-      }
-    }, [user])
-
-    const initializeSync = async () => {
-      try {
-        const sync = initGlobalSync(user!.id)
-        await sync.startSync()
-        
-        // Get sync status
-        const status = sync.getStatus()
-        setSyncStatus({
-          isConnected: status.isConnected,
-          hasFileWatcher: status.hasFileWatcher,
-          deviceType: detectDeviceType()
-        })
-
-        // Optionally hook sync events
-
-      } catch (error) {
-        console.error('Failed to initialize sync:', error)
-      }
-    }
-
-    const detectDeviceType = () => {
-      if (typeof window === 'undefined') return 'unknown'
+  const initializeSync = useCallback(async () => {
+    try {
+      const sync = initGlobalSync(user!.id)
+      await sync.startSync()
       
-      const userAgent = navigator.userAgent
-      if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)) {
-        return 'mobile'
-      } else if (/Mac|Windows|Linux/i.test(userAgent)) {
-        return 'desktop'
-      }
-      return 'unknown'
+      // Get sync status
+      const status = sync.getStatus()
+      setSyncStatus({
+        isConnected: status.isConnected,
+        hasFileWatcher: status.hasFileWatcher,
+        deviceType: detectDeviceType()
+      })
+
+      // Optionally hook sync events
+
+    } catch (error) {
+      console.error('Failed to initialize sync:', error)
+    }
+  }, [user])
+
+  // Initialize real-time sync when user logs in
+  useEffect(() => {
+    if (user && !syncStatus.isConnected) {
+      initializeSync()
     }
 
-    const handleSignOut = async () => {
-      try {
+    return () => {
+      if (syncStatus.isConnected) {
         stopGlobalSync()
-        await signOut()
-        router.push('/auth/signin')
-      } catch (error) {
-        console.error('Error signing out:', error)
       }
     }
+  }, [user, syncStatus.isConnected, initializeSync])
 
-    const handleUploadComplete = (files: any[]) => {
-      console.log('Upload completed:', files)
-      setShowUpload(false)
-      // Trigger a refetch of files without needing a full page refresh
-      setFilesRefreshKey(prev => prev + 1)
+  const detectDeviceType = () => {
+    if (typeof window === 'undefined') return 'unknown'
+    
+    const userAgent = navigator.userAgent
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)) {
+      return 'mobile'
+    } else if (/Mac|Windows|Linux/i.test(userAgent)) {
+      return 'desktop'
     }
+    return 'unknown'
+  }
 
-    const formatFileSize = (bytes: number) => {
-      if (bytes === 0) return '0 Bytes'
-      const k = 1024
-      const sizes = ['Bytes', 'KB', 'MB', 'GB']
-      const i = Math.floor(Math.log(bytes) / Math.log(k))
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  const handleSignOut = async () => {
+    try {
+      stopGlobalSync()
+      await signOut()
+      router.push('/auth/signin')
+    } catch (error) {
+      console.error('Error signing out:', error)
     }
+  }
 
-    const formatDate = (dateString: string) => {
-      return new Date(dateString).toLocaleDateString()
-    }
+  const handleUploadComplete = (files: unknown[]) => {
+    console.log('Upload completed:', files)
+    // Trigger a refetch of files without needing a full page refresh
+    setFilesRefreshKey(prev => prev + 1)
+  }
 
-    const showLoader = stableLoading
+  const showLoader = stableLoading
 
-    if (!user) {
-      console.log('🔍 Dashboard: No user, returning null')
-      return null
-    }
+  if (!user) {
+    console.log('🔍 Dashboard: No user, returning null')
+    return null
+  }
 
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 relative">
@@ -218,7 +189,7 @@ export default function Dashboard() {
                 <div className="relative group">
                   <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                      <Image src={avatarUrl} alt="User avatar" width={24} height={24} className="h-6 w-6 rounded-full object-cover" />
                     ) : (
                       <User className="h-5 w-5 text-slate-600 dark:text-slate-400" />
                     )}
@@ -327,20 +298,4 @@ export default function Dashboard() {
         </main>
       </div>
     )
-  } catch (error) {
-    console.error('Error rendering Dashboard component:', error)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-red-100 dark:bg-red-900">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-red-600 dark:text-red-400 mb-4">Error</h1>
-          <p className="text-lg text-red-800 dark:text-red-200 mb-6">
-            An unexpected error occurred while rendering the dashboard.
-          </p>
-          <p className="text-sm text-red-700 dark:text-red-300">
-            Please try refreshing the page or contact support.
-          </p>
-        </div>
-      </div>
-    )
-  }
 }

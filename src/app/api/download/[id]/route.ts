@@ -47,7 +47,7 @@ export async function GET(
     }
 
     // Rate limit key setup (per-user if authenticated, else per-IP for public)
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || (request as any).ip || 'unknown'
+    // const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
 
     // Require authentication for all downloads now (friends-only for public)
     const { data: { user }, error: authError } = await ssr.auth.getUser()
@@ -118,7 +118,7 @@ export async function GET(
           last_downloaded: new Date().toISOString(),
         })
         .eq('id', document.id)
-    } catch (e) {
+    } catch {
       // ignore metrics errors
     }
 

@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { Cloud, Shield, Lock, Zap, Check, ArrowRight, Folder, UploadCloud, Share2 } from 'lucide-react'
+import { Cloud, Shield, Lock, Zap, ArrowRight } from 'lucide-react'
 import Starfield from '@/components/Starfield'
 import PageLoader from '@/components/PageLoader'
 import GrainOverlay from '@/components/GrainOverlay'

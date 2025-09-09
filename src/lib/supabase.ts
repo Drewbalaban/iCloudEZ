@@ -86,7 +86,7 @@ export interface Database {
           download_count: number
           last_downloaded: string | null
           checksum: string | null
-          metadata: any | null
+          metadata: Record<string, unknown> | null
           created_at: string
           updated_at: string
         }
@@ -104,7 +104,7 @@ export interface Database {
           download_count?: number
           last_downloaded?: string | null
           checksum?: string | null
-          metadata?: any | null
+          metadata?: Record<string, unknown> | null
           created_at?: string
           updated_at?: string
         }
@@ -122,7 +122,7 @@ export interface Database {
           download_count?: number
           last_downloaded?: string | null
           checksum?: string | null
-          metadata?: any | null
+          metadata?: Record<string, unknown> | null
           created_at?: string
           updated_at?: string
         }
@@ -161,7 +161,7 @@ export interface Database {
           id: string
           user_id: string
           session_token: string
-          device_info: any | null
+          device_info: Record<string, unknown> | null
           ip_address: string | null
           expires_at: string
           created_at: string
@@ -170,7 +170,7 @@ export interface Database {
           id?: string
           user_id: string
           session_token: string
-          device_info?: any | null
+          device_info?: Record<string, unknown> | null
           ip_address?: string | null
           expires_at: string
           created_at?: string
@@ -179,7 +179,7 @@ export interface Database {
           id?: string
           user_id?: string
           session_token?: string
-          device_info?: any | null
+          device_info?: Record<string, unknown> | null
           ip_address?: string | null
           expires_at?: string
           created_at?: string

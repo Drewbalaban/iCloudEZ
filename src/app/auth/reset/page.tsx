@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Mail, ArrowLeft, Cloud, CheckCircle, AlertCircle } from 'lucide-react'
 
@@ -11,7 +10,6 @@ export default function ResetPasswordRequest() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,8 +23,8 @@ export default function ResetPasswordRequest() {
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
       if (error) throw error
       setMessage('If an account exists for that email, a reset link has been sent.')
-    } catch (err: any) {
-      setError(err.message || 'Failed to send reset email')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send reset email')
     } finally {
       setLoading(false)
     }
@@ -40,7 +38,7 @@ export default function ResetPasswordRequest() {
             <Cloud className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Reset your password</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-2">Enter your email and we'll send you a reset link.</p>
+          <p className="text-slate-600 dark:text-slate-400 mt-2">Enter your email and we&apos;ll send you a reset link.</p>
         </div>
 
         {message && (

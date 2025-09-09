@@ -75,14 +75,13 @@ export async function GET(
       // Extract text from the first page using pdfjs-dist (more reliable in edge/server envs)
       try {
         const pdfjsLib = await import('pdfjs-dist')
-        // @ts-ignore - getDocument exists at runtime
-        const getDocument = pdfjsLib.getDocument || (pdfjsLib as any).default.getDocument
+        const getDocument = pdfjsLib.getDocument || (pdfjsLib as { default: { getDocument: unknown } }).default.getDocument
         const buffer = await fileData.arrayBuffer()
         const loadingTask = getDocument({ data: buffer })
         const pdf = await loadingTask.promise
         const page = await pdf.getPage(1)
-        const textContent: any = await page.getTextContent()
-        const strings: string[] = textContent.items?.map((i: any) => i.str).filter(Boolean) || []
+        const textContent = await page.getTextContent() as { items?: Array<{ str: string }> }
+        const strings: string[] = textContent.items?.map((i) => i.str).filter(Boolean) || []
         content = strings.join(' ').trim() || 'No selectable text on first page.'
       } catch (pdfError) {
         console.error('PDF parsing error (pdfjs):', pdfError)
@@ -119,7 +118,7 @@ export async function GET(
             .replace(/__([^_]+)__/g, '$1')
             .replace(/_([^_]+)_/g, '$1')
         }
-      } catch (error) {
+      } catch {
         content = `Unable to preview this ${fileName.split('.').pop()?.toUpperCase()} file.\n\nThe file may be binary or in a format that requires special handling.\n\nPlease download the file to view its contents.`
       }
     }

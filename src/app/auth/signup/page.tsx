@@ -45,8 +45,8 @@ export default function SignUp() {
       setTimeout(() => {
         router.push('/auth/signin')
       }, 3000)
-    } catch (error: any) {
-      setError(error.message || 'Failed to create account')
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Failed to create account')
     } finally {
       setLoading(false)
     }

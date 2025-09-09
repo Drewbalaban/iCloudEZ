@@ -1,11 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 
 export class RealtimeSync {
-  private supabase: any
+  private supabase: SupabaseClient
   private userId: string
   private isConnected: boolean = false
-  private syncCallbacks: Map<string, Function[]> = new Map()
+  private syncCallbacks: Map<string, ((data: unknown) => void)[]> = new Map()
 
   constructor(userId: string) {
     this.userId = userId
@@ -31,23 +31,8 @@ export class RealtimeSync {
             table: 'documents',
             filter: `user_id=eq.${this.userId}`
           },
-          (payload: any) => {
+          (payload: unknown) => {
             this.handleRealtimeChange(payload)
-          }
-        )
-        .subscribe()
-
-      // Subscribe to storage changes
-      const storageSubscription = this.supabase
-        .channel('storage-sync')
-        .on(
-          'storage',
-          {
-            event: '*',
-            bucket: 'documents'
-          },
-          (payload: any) => {
-            this.handleStorageChange(payload)
           }
         )
         .subscribe()
@@ -57,7 +42,7 @@ export class RealtimeSync {
 
       // File watching not implemented in this version
 
-      return { subscription, storageSubscription }
+      return { subscription }
     } catch (error) {
       console.error('Failed to start real-time sync:', error)
       throw error
@@ -71,29 +56,29 @@ export class RealtimeSync {
   }
 
   // Handle real-time database changes
-  private handleRealtimeChange(payload: any) {
-    const { eventType, new: newRecord, old: oldRecord } = payload
+  private handleRealtimeChange(payload: unknown) {
+    const { eventType, new: newRecord, old: oldRecord } = payload as { eventType: string; new: unknown; old: unknown }
 
     switch (eventType) {
       case 'INSERT':
         this.notifyCallbacks('fileAdded', newRecord)
-        toast.success(`📁 New file synced: ${newRecord.name}`)
+        toast.success(`📁 New file synced: ${(newRecord as { name?: string })?.name || 'Unknown'}`)
         break
       
       case 'UPDATE':
         this.notifyCallbacks('fileUpdated', newRecord)
-        toast.info(`📝 File updated: ${newRecord.name}`)
+        toast.info(`📝 File updated: ${(newRecord as { name?: string })?.name || 'Unknown'}`)
         break
       
       case 'DELETE':
         this.notifyCallbacks('fileDeleted', oldRecord)
-        toast.info(`🗑️ File deleted: ${oldRecord.name}`)
+        toast.info(`🗑️ File deleted: ${(oldRecord as { name?: string })?.name || 'Unknown'}`)
         break
     }
   }
 
   // Handle storage changes
-  private handleStorageChange(payload: any) {
+  private handleStorageChange(payload: unknown) {
     console.log('Storage change detected:', payload)
     // Handle file uploads, deletions, etc.
   }
@@ -101,7 +86,7 @@ export class RealtimeSync {
   // File watching functionality removed for now - will be implemented in future versions
 
   // Register callback for sync events
-  on(event: string, callback: Function) {
+  on(event: string, callback: (data: unknown) => void) {
     if (!this.syncCallbacks.has(event)) {
       this.syncCallbacks.set(event, [])
     }
@@ -109,7 +94,7 @@ export class RealtimeSync {
   }
 
   // Remove callback
-  off(event: string, callback: Function) {
+  off(event: string, callback: (data: unknown) => void) {
     const callbacks = this.syncCallbacks.get(event)
     if (callbacks) {
       const index = callbacks.indexOf(callback)
@@ -120,7 +105,7 @@ export class RealtimeSync {
   }
 
   // Notify all callbacks for an event
-  private notifyCallbacks(event: string, data: any) {
+  private notifyCallbacks(event: string, data: unknown) {
     const callbacks = this.syncCallbacks.get(event)
     if (callbacks) {
       callbacks.forEach(callback => callback(data))

@@ -41,7 +41,7 @@ export interface Document {
   download_count: number
   last_downloaded: string | null
   checksum: string | null
-  metadata: any | null
+  metadata: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -60,7 +60,7 @@ export interface UserSession {
   id: string
   user_id: string
   session_token: string
-  device_info: any | null
+  device_info: Record<string, unknown> | null
   ip_address: string | null
   expires_at: string
   created_at: string
@@ -105,7 +105,7 @@ export interface Message {
   attachment_name: string | null
   attachment_size: number | null
   attachment_mime_type: string | null
-  metadata: any | null
+  metadata: Record<string, unknown> | null
   edited_at: string | null
   deleted_at: string | null
   created_at: string
@@ -135,7 +135,7 @@ export interface UserPresence {
   is_typing: boolean
   typing_in_conversation_id: string | null
   custom_status: string | null
-  device_info: any | null
+  device_info: Record<string, unknown> | null
 }
 
 export interface ChatSettings {
