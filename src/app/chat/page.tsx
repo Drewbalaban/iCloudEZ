@@ -16,12 +16,11 @@ import {
   Cloud,
   Smile,
   Paperclip,
-  Phone,
-  Video,
   User,
   Clock
 } from 'lucide-react'
 import { toast } from 'sonner'
+import EmojiPicker from 'emoji-picker-react'
 
 interface Conversation {
   id: string
@@ -78,6 +77,7 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'chats' | 'friends'>('chats')
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Redirect if not authenticated
@@ -254,6 +254,46 @@ export default function ChatPage() {
     return otherParticipant?.avatar_url
   }
 
+  const onEmojiClick = (emojiObject: any) => {
+    setNewMessage(prev => prev + emojiObject.emoji)
+    setShowEmojiPicker(false)
+  }
+
+  // Instagram-style gradient generator based on message count
+  const getInstagramGradient = (messageCount: number) => {
+    const gradients = [
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple to blue
+      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', // Pink to red
+      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', // Blue to cyan
+      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', // Green to teal
+      'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', // Pink to yellow
+      'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', // Mint to pink
+      'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)', // Coral to pink
+      'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', // Peach gradient
+      'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)', // Purple to pink
+      'linear-gradient(135deg, #fad0c4 0%, #ffd1ff 100%)', // Warm to cool
+    ]
+    
+    // Cycle through gradients based on message count
+    const gradientIndex = Math.floor(messageCount / 5) % gradients.length
+    return gradients[gradientIndex]
+  }
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showEmojiPicker) {
+        const target = event.target as Element
+        if (!target.closest('.emoji-picker-container') && !target.closest('[data-emoji-button]')) {
+          setShowEmojiPicker(false)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showEmojiPicker])
+
   if (!user) {
     return null
   }
@@ -291,8 +331,8 @@ export default function ChatPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[600px]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full" style={{ height: 'calc(100vh - 112px)' }}>
           {/* Left Sidebar - Chats & Friends */}
           <div className="lg:col-span-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col">
             {/* Sidebar Header */}
@@ -472,7 +512,7 @@ export default function ChatPage() {
           </div>
 
           {/* Chat Area */}
-          <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col">
+          <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col min-h-0">
             {selectedConversation ? (
               <>
                 {/* Chat Header */}
@@ -504,12 +544,6 @@ export default function ChatPage() {
                     
                     <div className="flex items-center space-x-2">
                       <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                        <Phone className="h-5 w-5" />
-                      </button>
-                      <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                        <Video className="h-5 w-5" />
-                      </button>
-                      <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                         <MoreVertical className="h-5 w-5" />
                       </button>
                     </div>
@@ -517,7 +551,7 @@ export default function ChatPage() {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
                   {messages.length === 0 ? (
                     <div className="text-center text-slate-500 py-8">
                       <MessageCircle className="h-12 w-12 mx-auto mb-3 text-slate-300" />
@@ -551,11 +585,18 @@ export default function ChatPage() {
                             </div>
                           )}
                           
-                          <div className={`px-4 py-2 rounded-lg ${
-                            message.sender.id === user.id
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
-                          }`}>
+                          <div 
+                            className={`px-4 py-2 rounded-lg text-white ${
+                              message.sender.id === user.id
+                                ? 'text-white shadow-lg shadow-black/20'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                            }`}
+                            style={message.sender.id === user.id ? {
+                              background: getInstagramGradient(messages.length),
+                              backgroundAttachment: 'fixed',
+                              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
+                            } : {}}
+                          >
                             {message.sender.id !== user.id && (
                               <p className="text-xs font-medium mb-1 opacity-70">
                                 {message.sender.username}
@@ -563,7 +604,7 @@ export default function ChatPage() {
                             )}
                             <p className="text-sm">{message.content}</p>
                             <p className={`text-xs mt-1 ${
-                              message.sender.id === user.id ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'
+                              message.sender.id === user.id ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
                             }`}>
                               {formatTime(message.created_at)}
                             </p>
@@ -576,12 +617,16 @@ export default function ChatPage() {
                 </div>
 
                 {/* Message Input */}
-                <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+                <div className="p-4 border-t border-slate-200 dark:border-slate-700 relative">
                   <div className="flex items-center space-x-2">
                     <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                       <Paperclip className="h-5 w-5" />
                     </button>
-                    <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                    <button 
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      data-emoji-button
+                    >
                       <Smile className="h-5 w-5" />
                     </button>
                     
@@ -604,6 +649,23 @@ export default function ChatPage() {
                       <Send className="h-5 w-5" />
                     </button>
                   </div>
+                  
+                  {/* Emoji Picker */}
+                  {showEmojiPicker && (
+                    <div className="absolute bottom-16 left-4 z-50 emoji-picker-container">
+                      <EmojiPicker
+                        onEmojiClick={onEmojiClick}
+                        width={350}
+                        height={400}
+                        searchDisabled={false}
+                        skinTonesDisabled={false}
+                        previewConfig={{
+                          showPreview: true
+                        }}
+                        theme="auto"
+                      />
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
