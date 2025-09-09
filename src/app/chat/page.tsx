@@ -259,8 +259,8 @@ export default function ChatPage() {
     setShowEmojiPicker(false)
   }
 
-  // Instagram-style gradient generator based on message count
-  const getInstagramGradient = (messageCount: number) => {
+  // Instagram-style gradient generator based on user's message count
+  const getInstagramGradient = (messageIndex: number) => {
     const gradients = [
       'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // Purple to blue
       'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', // Pink to red
@@ -274,9 +274,17 @@ export default function ChatPage() {
       'linear-gradient(135deg, #fad0c4 0%, #ffd1ff 100%)', // Warm to cool
     ]
     
-    // Cycle through gradients based on message count
-    const gradientIndex = Math.floor(messageCount / 5) % gradients.length
+    // Cycle through gradients based on user's message index (change every 2 messages)
+    const gradientIndex = Math.floor(messageIndex / 2) % gradients.length
     return gradients[gradientIndex]
+  }
+
+  // Get user's message index for gradient calculation
+  const getUserMessageIndex = (messageId: string) => {
+    const userMessages = messages.filter(msg => msg.sender.id === user?.id)
+    const index = userMessages.findIndex(msg => msg.id === messageId)
+    console.log(`Message ${messageId}: index ${index}, total user messages: ${userMessages.length}`)
+    return index
   }
 
   // Close emoji picker when clicking outside
@@ -592,7 +600,7 @@ export default function ChatPage() {
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                             }`}
                             style={message.sender.id === user.id ? {
-                              background: getInstagramGradient(messages.length),
+                              background: getInstagramGradient(getUserMessageIndex(message.id)),
                               backgroundAttachment: 'fixed',
                               boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
                             } : {}}
