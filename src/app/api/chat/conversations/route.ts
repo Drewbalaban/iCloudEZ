@@ -39,20 +39,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch conversations' }, { status: 500 })
     }
 
-    // Get participants for each conversation
+    // Get participants for each conversation using service role to bypass RLS
+    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const admin = adminKey ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, adminKey) : null
+    
     const conversationsWithParticipants = await Promise.all(
       conversations.map(async (conversation) => {
-        const { data: participants } = await supabase
+        // Use admin client to get all participants (bypasses RLS)
+        const client = admin ?? supabase
+        const { data: participants } = await client
           .from('conversation_participants')
-          .select(`
-            *,
-            profiles!inner(id, username, full_name, avatar_url)
-          `)
+          .select('*')
           .eq('conversation_id', conversation.id)
+
+        // Get profiles for all participants
+        const participantIds = participants?.map(p => p.user_id) || []
+        const { data: profiles } = await client
+          .from('profiles')
+          .select('id, username, full_name, avatar_url')
+          .in('id', participantIds)
+
+        // Combine participant data with profile data
+        const participantsWithProfiles = participants?.map(participant => {
+          const profile = profiles?.find(profile => profile.id === participant.user_id)
+          return {
+            id: participant.user_id,
+            username: profile?.username || 'Unknown',
+            full_name: profile?.full_name || null,
+            avatar_url: profile?.avatar_url || null,
+            role: participant.role,
+            joined_at: participant.joined_at,
+            last_read_at: participant.last_read_at,
+            is_muted: participant.is_muted,
+            is_archived: participant.is_archived
+          }
+        }) || []
 
         return {
           ...conversation,
-          participants: participants || []
+          participants: participantsWithProfiles
         }
       })
     )
@@ -85,6 +110,11 @@ export async function POST(request: NextRequest) {
   try {
     let conversationId: string
 
+    // Set up service role client for all operations
+    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const admin = adminKey ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, adminKey) : null
+    const client = admin ?? supabase
+
     if (type === 'direct') {
       if (!friendId) {
         return NextResponse.json({ error: 'friendId required for direct conversation' }, { status: 400 })
@@ -101,11 +131,6 @@ export async function POST(request: NextRequest) {
       if (!friendship) {
         return NextResponse.json({ error: 'Users must be friends to start a conversation' }, { status: 403 })
       }
-
-      // Use service role to create direct conversation
-      const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-      const admin = adminKey ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, adminKey) : null
-      const client = admin ?? supabase
 
       const { data, error: rpcError } = await client.rpc('create_direct_conversation', {
         user1_id: user.id,
@@ -124,7 +149,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'name required for group conversation' }, { status: 400 })
       }
 
-      const { data: conversation, error: createError } = await supabase
+      const { data: conversation, error: createError } = await client
         .from('conversations')
         .insert({
           type: 'group',
@@ -143,7 +168,7 @@ export async function POST(request: NextRequest) {
       conversationId = conversation.id
 
       // Add creator as admin participant
-      const { error: participantError } = await supabase
+      const { error: participantError } = await client
         .from('conversation_participants')
         .insert({
           conversation_id: conversationId,
@@ -162,10 +187,7 @@ export async function POST(request: NextRequest) {
       .from('conversations')
       .select(`
         *,
-        conversation_participants(
-          *,
-          profiles!inner(id, username, full_name, avatar_url)
-        )
+        conversation_participants(*)
       `)
       .eq('id', conversationId)
       .single()
@@ -175,7 +197,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch conversation' }, { status: 500 })
     }
 
-    return NextResponse.json({ conversation: createdConversation })
+    // Get profiles for all participants using service role
+    const participantIds = createdConversation.conversation_participants?.map((p: any) => p.user_id) || []
+    const { data: profiles } = await client
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .in('id', participantIds)
+
+    // Combine participant data with profile data
+    const participantsWithProfiles = createdConversation.conversation_participants?.map((participant: any) => {
+      const profile = profiles?.find(profile => profile.id === participant.user_id)
+      return {
+        id: participant.user_id,
+        username: profile?.username || 'Unknown',
+        full_name: profile?.full_name || null,
+        avatar_url: profile?.avatar_url || null,
+        role: participant.role,
+        joined_at: participant.joined_at,
+        last_read_at: participant.last_read_at,
+        is_muted: participant.is_muted,
+        is_archived: participant.is_archived
+      }
+    }) || []
+
+    const conversationWithProfiles = {
+      ...createdConversation,
+      participants: participantsWithProfiles
+    }
+
+    return NextResponse.json({ conversation: conversationWithProfiles })
   } catch (error) {
     console.error('Error in create conversation API:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

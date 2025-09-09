@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { createClient } from '@supabase/supabase-js'
 import type { 
   Profile, 
   Document, 
@@ -599,12 +600,14 @@ export const chatService = {
     const sb = getSb()
     if (!sb) return []
 
-    const { data, error } = await sb
+    // Use service role to bypass RLS for getting all participants
+    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const admin = adminKey ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, adminKey) : null
+    const client = admin ?? sb
+
+    const { data: participants, error } = await client
       .from('conversation_participants')
-      .select(`
-        *,
-        profiles!inner(id, username, email, full_name, avatar_url)
-      `)
+      .select('*')
       .eq('conversation_id', conversationId)
 
     if (error) {
@@ -612,7 +615,24 @@ export const chatService = {
       return []
     }
 
-    return (data as unknown as ConversationParticipant[]) || []
+    if (!participants || participants.length === 0) {
+      return []
+    }
+
+    // Get profiles for all participants
+    const participantIds = participants.map((p: any) => p.user_id)
+    const { data: profiles } = await client
+      .from('profiles')
+      .select('id, username, email, full_name, avatar_url')
+      .in('id', participantIds)
+
+    // Combine participant data with profile data
+    const participantsWithProfiles = participants.map((participant: any) => ({
+      ...participant,
+      profiles: profiles?.find((profile: any) => profile.id === participant.user_id) || null
+    }))
+
+    return (participantsWithProfiles as unknown as ConversationParticipant[]) || []
   },
 
   // Message operations
