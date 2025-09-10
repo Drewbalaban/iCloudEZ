@@ -111,7 +111,13 @@ export async function GET(request: NextRequest) {
           }
         } : undefined,
         message_reactions: reactionsWithProfiles,
-        read_receipts: readReceipts?.filter(rr => rr.message_id === message.id) || []
+        read_receipts: readReceipts?.filter(rr => rr.message_id === message.id) || [],
+        // Encryption fields (only if they exist in the database)
+        is_encrypted: message.is_encrypted || false,
+        encryption_key_id: message.encryption_key_id || null,
+        encrypted_content: message.encrypted_content || null,
+        encryption_iv: message.encryption_iv || null,
+        encryption_signature: message.encryption_signature || null
       }
     })
 
@@ -132,11 +138,17 @@ export async function POST(request: NextRequest) {
     attachmentName,
     attachmentSize,
     attachmentMimeType,
-    replyToId
+    replyToId,
+    // Encryption fields
+    isEncrypted = false,
+    encryptedContent,
+    encryptionKeyId,
+    encryptionIv,
+    encryptionSignature
   } = body || {}
 
-  if (!conversationId || !content) {
-    return NextResponse.json({ error: 'conversationId and content required' }, { status: 400 })
+  if (!conversationId || (!content && !encryptedContent)) {
+    return NextResponse.json({ error: 'conversationId and content (or encryptedContent) required' }, { status: 400 })
   }
 
   const supabase = createServerClient(
@@ -166,17 +178,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Create message
-    const messageData = {
+    // Check if conversation is encrypted (with fallback for missing schema)
+    let conversationEncrypted = false
+    try {
+      const { data: conversation } = await supabase
+        .from('conversations')
+        .select('is_encrypted')
+        .eq('id', conversationId)
+        .single()
+      conversationEncrypted = conversation?.is_encrypted || false
+    } catch (error) {
+      console.warn('Could not check conversation encryption status (schema may not be applied):', error)
+      // Continue without encryption fields if schema is not applied
+    }
+
+    // Create message data with encryption support (only if schema is applied)
+    const messageData: any = {
       conversation_id: conversationId,
       sender_id: user.id,
-      content,
+      content: isEncrypted ? null : content, // Store plain content only if not encrypted
       message_type: messageType,
       attachment_url: attachmentUrl || null,
       attachment_name: attachmentName || null,
       attachment_size: attachmentSize || null,
       attachment_mime_type: attachmentMimeType || null,
       reply_to_id: replyToId || null
+    }
+
+    // Only add encryption fields if they're provided (indicates schema is applied)
+    if (isEncrypted || encryptionKeyId || encryptedContent) {
+      messageData.is_encrypted = isEncrypted || conversationEncrypted
+      messageData.encryption_key_id = encryptionKeyId || null
+      messageData.encrypted_content = encryptedContent || null
+      messageData.encryption_iv = encryptionIv || null
+      messageData.encryption_signature = encryptionSignature || null
     }
 
     const { data: message, error } = await supabase

@@ -78,6 +78,10 @@ export interface Conversation {
   last_message_at: string | null
   created_at: string
   updated_at: string
+  // Encryption fields
+  is_encrypted: boolean
+  encryption_enabled_at: string | null
+  last_key_rotation: string | null
 }
 
 export interface ConversationParticipant {
@@ -110,6 +114,12 @@ export interface Message {
   deleted_at: string | null
   created_at: string
   updated_at: string
+  // Encryption fields
+  is_encrypted: boolean
+  encryption_key_id: string | null
+  encrypted_content: string | null
+  encryption_iv: string | null
+  encryption_signature: string | null
 }
 
 export interface MessageReaction {
@@ -150,6 +160,52 @@ export interface ChatSettings {
   message_preview: boolean
   created_at: string
   updated_at: string
+}
+
+// Encryption-related interfaces
+export interface UserEncryptionKey {
+  id: string
+  user_id: string
+  key_id: string
+  public_key: string
+  key_type: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface KeyExchangeRequest {
+  id: string
+  conversation_id: string
+  initiator_id: string
+  participant_id: string
+  public_key: string
+  key_id: string
+  status: 'pending' | 'completed' | 'failed'
+  timestamp: string
+  completed_at: string | null
+}
+
+export interface ConversationEncryptionKey {
+  id: string
+  conversation_id: string
+  key_id: string
+  encrypted_key: string
+  participant_id: string
+  key_version: number
+  is_active: boolean
+  created_at: string
+  expires_at: string | null
+}
+
+export interface EncryptionNotification {
+  id: string
+  conversation_id: string
+  user_id: string
+  type: 'key_exchange' | 'key_rotation' | 'encryption_enabled' | 'encryption_disabled'
+  data: Record<string, unknown> | null
+  is_read: boolean
+  created_at: string
 }
 
 // Helper functions for working with file categories

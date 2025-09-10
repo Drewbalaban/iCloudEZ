@@ -22,6 +22,8 @@ import {
 import { toast } from 'sonner'
 import EmojiPicker from 'emoji-picker-react'
 import { supabase } from '@/lib/supabase'
+import EncryptionStatus from '@/components/EncryptionStatus'
+import { useEncryption } from '@/hooks/useEncryption'
 
 interface Conversation {
   id: string
@@ -59,6 +61,12 @@ interface Message {
       username: string
     }
   }
+  // Encryption fields
+  is_encrypted?: boolean
+  encryption_key_id?: string
+  encrypted_content?: string
+  encryption_iv?: string
+  encryption_signature?: string
 }
 
 interface Friend {
@@ -79,7 +87,12 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'chats' | 'friends'>('chats')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [isEncrypted, setIsEncrypted] = useState(true) // Always encrypted by default
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // Full E2EE encryption hook with error handling
+  const encryptionHook = useEncryption()
+  const { encryptMessage, decryptMessage, status: encryptionStatus } = encryptionHook || {}
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -204,6 +217,53 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Decrypt messages when they're loaded or received
+  useEffect(() => {
+    const decryptMessages = async () => {
+      if (!selectedConversation || messages.length === 0 || !decryptMessage) return
+
+      const updatedMessages = await Promise.all(
+        messages.map(async (message) => {
+          if (message.is_encrypted && message.encrypted_content) {
+            try {
+              const decryptedContent = await decryptMessage(
+                {
+                  encryptedContent: message.encrypted_content,
+                  iv: message.encryption_iv || '',
+                  timestamp: message.created_at
+                },
+                selectedConversation.id
+              )
+              
+              return {
+                ...message,
+                content: decryptedContent || message.content
+              }
+            } catch (error) {
+              console.error('Error decrypting message:', error)
+              return {
+                ...message,
+                content: '[Encrypted message - unable to decrypt]'
+              }
+            }
+          }
+          return message
+        })
+      )
+
+      // Only update if there are changes
+      const hasChanges = updatedMessages.some((msg, index) => 
+        msg.content !== messages[index].content
+      )
+
+      if (hasChanges) {
+        setMessages(updatedMessages)
+      }
+    }
+
+    decryptMessages()
+  }, [messages, selectedConversation, decryptMessage])
+
   // Real-time message subscription
   useEffect(() => {
     if (!user || !selectedConversation) return
@@ -294,16 +354,43 @@ export default function ChatPage() {
     if (!newMessage.trim() || !selectedConversation) return
 
     try {
+      let messageData: any = {
+        conversationId: selectedConversation.id,
+        content: newMessage.trim(),
+        messageType: 'text'
+      }
+
+      // Encrypt message if encryption is enabled and available
+      if (isEncrypted && encryptMessage) {
+        try {
+          const encryptedMessage = await encryptMessage(newMessage.trim(), selectedConversation.id)
+          if (encryptedMessage) {
+            messageData = {
+              ...messageData,
+              isEncrypted: true,
+              encryptedContent: encryptedMessage.encryptedContent,
+              encryptionKeyId: encryptedMessage.keyId, // Full E2EE key identifier
+              encryptionIv: encryptedMessage.iv,
+              encryptionSignature: encryptedMessage.signature, // Full E2EE includes signatures
+              content: null // Don't send plain content when encrypted
+            }
+          } else {
+            console.warn('Encryption failed, sending as plain text')
+            // Continue with plain text if encryption fails
+          }
+        } catch (error) {
+          console.error('Encryption error:', error)
+          console.warn('Encryption failed, sending as plain text')
+          // Continue with plain text if encryption fails
+        }
+      }
+
       const response = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          conversationId: selectedConversation.id,
-          content: newMessage.trim(),
-          messageType: 'text'
-        })
+        body: JSON.stringify(messageData)
       })
 
       if (response.ok) {
@@ -666,6 +753,13 @@ export default function ChatPage() {
                     </div>
                     
                     <div className="flex items-center space-x-2">
+                      {encryptionHook && (
+                        <EncryptionStatus 
+                          conversationId={selectedConversation.id}
+                          isEncrypted={isEncrypted}
+                          onEncryptionToggle={setIsEncrypted}
+                        />
+                      )}
                       <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                         <MoreVertical className="h-5 w-5" />
                       </button>
