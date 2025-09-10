@@ -556,12 +556,14 @@ export default function FileManager({ onFileSelect, refreshKey = 0, shared = fal
     const matchesVisibility = visibilityFilter === 'all' || file.visibility === visibilityFilter
     return matchesSearch && matchesCategory && matchesFolder && matchesVisibility
   })
-  // Generate signed preview URLs for image files in view
+  // Generate signed preview URLs for image and PDF files in view
   useEffect(() => {
     const sb = getSb()
     if (!sb || !user) return
-    const imageFiles = filteredFiles.filter(f => f.file_category === 'image')
-    imageFiles.forEach(async (file) => {
+    const previewableFiles = filteredFiles.filter(f => 
+      f.file_category === 'image' || f.name.toLowerCase().endsWith('.pdf')
+    )
+    previewableFiles.forEach(async (file) => {
       if (previewUrls[file.id]) return
       try {
         const { data, error } = await sb

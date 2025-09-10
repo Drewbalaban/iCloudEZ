@@ -79,10 +79,25 @@ export default function FilePreview({
         const pdfjs = await ensurePdfJs() as { GlobalWorkerOptions: { workerSrc: string }; getDocument: (options: { url: string; withCredentials: boolean }) => { promise: Promise<{ getPage: (pageNum: number) => Promise<{ getTextContent: () => Promise<{ items: Array<{ str: string }> }> }> }> } }
         pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
 
-        // Prefer direct file URL if available on the file object
-        // Prefer a signed URL from the API response if available on previewUrl-like field
-        const sourceUrl = (file as { url?: string }).url || (previewUrl as string | undefined)
-        if (!sourceUrl) throw new Error('No PDF URL available')
+        // Get PDF URL - prefer previewUrl, then try to generate signed URL
+        let sourceUrl = previewUrl as string | undefined
+        
+        if (!sourceUrl) {
+          // Generate signed URL for PDF file
+          try {
+            const response = await fetch(`/api/files/preview/${file.id}`)
+            if (response.ok) {
+              const data = await response.json()
+              sourceUrl = data.fileUrl || data.url || data.signedUrl
+            }
+          } catch (error) {
+            console.warn('Failed to get PDF URL from API:', error)
+          }
+        }
+
+        if (!sourceUrl) {
+          throw new Error('No PDF URL available')
+        }
 
         const loadingTask = pdfjs.getDocument({ url: sourceUrl, withCredentials: false })
         const pdf = await loadingTask.promise

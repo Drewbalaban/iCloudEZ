@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import EmojiPicker from 'emoji-picker-react'
+import { supabase } from '@/lib/supabase'
 
 interface Conversation {
   id: string
@@ -109,6 +110,56 @@ export default function ChatPage() {
     loadConversations()
   }, [user])
 
+  // Real-time conversation list updates
+  useEffect(() => {
+    if (!user) return
+
+    console.log('🔔 Setting up conversation list subscription')
+
+    // Subscribe to all message inserts to update conversation list
+    const conversationListSubscription = supabase
+      .channel('conversation-list-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages'
+        },
+        async (payload) => {
+          console.log('🔔 New message for conversation list update:', payload)
+          
+          // Get the sender profile
+          const { data: senderProfile } = await supabase
+            .from('profiles')
+            .select('id, username, full_name, avatar_url')
+            .eq('id', payload.new.sender_id)
+            .single()
+
+          const newMessage = {
+            content: payload.new.content,
+            created_at: payload.new.created_at,
+            sender: {
+              username: senderProfile?.username || 'Unknown'
+            }
+          }
+
+          // Update the conversation list with the new last message
+          setConversations(prev => prev.map(conv => 
+            conv.id === payload.new.conversation_id 
+              ? { ...conv, last_message: newMessage }
+              : conv
+          ))
+        }
+      )
+      .subscribe()
+
+    return () => {
+      console.log('🔔 Cleaning up conversation list subscription')
+      supabase.removeChannel(conversationListSubscription)
+    }
+  }, [user])
+
   // Load friends
   useEffect(() => {
     if (!user) return
@@ -152,6 +203,92 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Real-time message subscription
+  useEffect(() => {
+    if (!user || !selectedConversation) return
+
+    console.log('🔔 Setting up real-time subscription for conversation:', selectedConversation.id)
+
+    // Subscribe to new messages in the current conversation
+    const messageSubscription = supabase
+      .channel(`messages:${selectedConversation.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${selectedConversation.id}`
+        },
+        async (payload) => {
+          console.log('🔔 New message received:', payload)
+          
+          // Get the sender profile for the new message
+          const { data: senderProfile } = await supabase
+            .from('profiles')
+            .select('id, username, full_name, avatar_url')
+            .eq('id', payload.new.sender_id)
+            .single()
+
+          const newMessage = {
+            id: payload.new.id,
+            content: payload.new.content,
+            created_at: payload.new.created_at,
+            message_type: payload.new.message_type,
+            sender: {
+              id: payload.new.sender_id,
+              username: senderProfile?.username || 'Unknown',
+              avatar_url: senderProfile?.avatar_url || null
+            },
+            reply_to: payload.new.reply_to_id ? {
+              id: payload.new.reply_to_id,
+              content: '', // We'd need to fetch this separately if needed
+              sender: {
+                username: 'Unknown' // We'd need to fetch this separately if needed
+              }
+            } : undefined
+          }
+
+          // Only add the message if it's not from the current user (to avoid duplicates)
+          if (payload.new.sender_id !== user.id) {
+            setMessages(prev => [...prev, newMessage])
+            
+            // Update conversation with new last message
+            setConversations(prev => prev.map(conv => 
+              conv.id === selectedConversation.id 
+                ? { ...conv, last_message: newMessage }
+                : conv
+            ))
+          }
+        }
+      )
+      .subscribe()
+
+    // Subscribe to conversation updates (for last message changes from other participants)
+    const conversationSubscription = supabase
+      .channel(`conversations:${selectedConversation.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations',
+          filter: `id=eq.${selectedConversation.id}`
+        },
+        (payload) => {
+          console.log('🔔 Conversation updated:', payload)
+          // Update conversation data if needed
+        }
+      )
+      .subscribe()
+
+    return () => {
+      console.log('🔔 Cleaning up real-time subscriptions')
+      supabase.removeChannel(messageSubscription)
+      supabase.removeChannel(conversationSubscription)
+    }
+  }, [user, selectedConversation])
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation) return

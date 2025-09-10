@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1)
 
     if (error) {
